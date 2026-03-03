@@ -1,0 +1,9 @@
+{
+  "name": "Hisaab AI: Smart Financial Assistant",
+  "description": "A high-end financial management dashboard featuring AI-powered budgeting, dual-currency EUR/PKR tracking, and smart lending analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

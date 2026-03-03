@@ -1,0 +1,24 @@
+
+{
+  "name": "Hisaab AI Financial Assistant",
+  "short_name": "Hisaab AI",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#101922",
+  "theme_color": "#137fec",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/svg?seed=hisaab&backgroundColor=137fec",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/bottts/svg?seed=hisaab&backgroundColor=137fec",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

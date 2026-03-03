@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hisaab AI</string>
+    <string name="title_activity_main">Hisaab AI</string>
+    <string name="package_name">com.hisaabai.app</string>
+    <string name="custom_url_scheme">com.hisaabai.app</string>
+</resources>
