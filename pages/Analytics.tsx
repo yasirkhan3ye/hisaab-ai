@@ -3,6 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
 
+import { SmartProjection } from '../components/SmartProjection';
+
 interface AnalyticsProps {
   transactions: Transaction[];
 }
@@ -24,8 +26,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
     });
   }, [transactions, selectedMonth, selectedYear]);
 
-  const totalIncome = filteredData.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
-  const totalExpense = filteredData.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+  // Respect excludeFromAnalytics flag for income
+  const totalIncome = filteredData
+    .filter(t => t.type === 'income' && !t.excludeFromAnalytics)
+    .reduce((acc, curr) => acc + curr.amount, 0);
+
+  const totalExpense = filteredData
+    .filter(t => t.type === 'expense')
+    .reduce((acc, curr) => acc + curr.amount, 0);
 
   const expenseData = useMemo(() => {
     return filteredData
@@ -49,7 +57,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
 
       const inVal = transactions.filter(t => {
         const td = new Date(t.date);
-        return td.getMonth() === m && td.getFullYear() === y && t.type === 'income';
+        return td.getMonth() === m && td.getFullYear() === y && t.type === 'income' && !t.excludeFromAnalytics;
       }).reduce((s, c) => s + c.amount, 0);
 
       const exVal = transactions.filter(t => {
@@ -90,7 +98,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
       </header>
 
       {/* Monthly Summary Card */}
-      <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden ai-glow">
+      <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden ai-glow border border-white/5">
         <div className="relative z-10 grid grid-cols-2 gap-8">
           <div className="space-y-1">
             <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Monthly Inflow</span>
@@ -111,6 +119,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
           <span className="material-symbols-outlined text-[150px]">data_usage</span>
         </div>
       </div>
+
+      {/* Smart Projection */}
+      <SmartProjection 
+        transactions={transactions} 
+        selectedMonth={selectedMonth} 
+        selectedYear={selectedYear} 
+      />
+
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 gap-6">

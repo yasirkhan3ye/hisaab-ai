@@ -25,7 +25,8 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     category: '',
     type: (searchParams.get('type') as TransactionType) || 'expense',
     description: '',
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    excludeFromAnalytics: false
   });
 
   useEffect(() => {
@@ -40,33 +41,46 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     e?.preventDefault();
     if (!formData.amount || !formData.category) return;
 
+    // Auto-exclude "Loan Repayment" or similar terms from analytics if it's income
+    const shouldExclude = formData.excludeFromAnalytics ||
+                         (formData.type === 'income' &&
+                          (formData.category.toLowerCase().includes('loan') ||
+                           formData.category.toLowerCase().includes('repayment') ||
+                           formData.category.toLowerCase().includes('lone')));
+
     onAdd({
       id: Math.random().toString(36).substr(2, 9),
       amount: parseFloat(formData.amount),
       category: formData.category,
       type: formData.type,
       description: formData.description,
-      date: formData.date
+      date: formData.date,
+      excludeFromAnalytics: shouldExclude
     });
-    setFormData({ amount: '', category: '', type: 'expense', description: '', date: new Date().toISOString().split('T')[0] });
+    setFormData({
+      amount: '',
+      category: '',
+      type: 'expense',
+      description: '',
+      date: new Date().toISOString().split('T')[0],
+      excludeFromAnalytics: false
+    });
     setShowAdd(false);
   };
 
-  // Normalizes MM/DD/YYYY or MM-DD-YYYY to YYYY-MM-DD
   const normalizeDate = (raw: string): string => {
     const slashMatch = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (slashMatch) {
       const [, m, d, y] = slashMatch;
       return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
-    return raw; // Already YYYY-MM-DD or unknown, return as-is
+    return raw;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Reset the input so the same file can be uploaded again after changes
     if (fileInputRef.current) fileInputRef.current.value = '';
 
     setIsUploading(true);
@@ -78,11 +92,10 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         try {
           const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
           if (lines.length > 1) {
-            // Auto-detect separator: tab or comma
             const firstLine = lines[0];
             const separator = firstLine.includes('\t') ? '\t' : ',';
-
             const headers = firstLine.toLowerCase().split(separator).map(h => h.trim());
+
             if (headers.includes('date') && headers.includes('amount') && headers.includes('category')) {
               const dateIdx = headers.indexOf('date');
               const amountIdx = headers.indexOf('amount');
@@ -96,17 +109,26 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                 if (values.length > Math.max(dateIdx, amountIdx, categoryIdx)) {
                   const amount = parseFloat(values[amountIdx]);
                   if (!isNaN(amount)) {
+                    const category = values[categoryIdx];
+                    const type = (() => {
+                      if (typeIdx === -1 || !values[typeIdx]) return 'expense';
+                      const t = values[typeIdx].toLowerCase().replace(/[^a-z]/g, '');
+                      return t === 'income' ? 'income' : 'expense';
+                    })() as TransactionType;
+
+                    const autoExclude = type === 'income' &&
+                                       (category.toLowerCase().includes('loan') ||
+                                        category.toLowerCase().includes('repayment') ||
+                                        category.toLowerCase().includes('lone'));
+
                     onAdd({
                       id: Math.random().toString(36).substr(2, 9),
                       date: normalizeDate(values[dateIdx] || new Date().toISOString().split('T')[0]),
                       amount: amount,
-                      category: values[categoryIdx],
-                      type: (() => {
-                        if (typeIdx === -1 || !values[typeIdx]) return 'expense';
-                        const t = values[typeIdx].toLowerCase().replace(/[^a-z]/g, '');
-                        return t === 'income' ? 'income' : 'expense';
-                      })() as TransactionType,
-                      description: (descIdx !== -1 && values[descIdx]) ? values[descIdx] : 'CSV Upload'
+                      category: category,
+                      type: type,
+                      description: (descIdx !== -1 && values[descIdx]) ? values[descIdx] : 'CSV Upload',
+                      excludeFromAnalytics: autoExclude
                     });
                     addedCount++;
                   }
@@ -123,12 +145,19 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         }
       }
 
-      // Fallback: Use Gemini for text files
       try {
         const extracted = await extractTransactionsFromText(content);
         if (extracted && extracted.length > 0) {
           extracted.forEach((item: any) => {
-            onAdd({ id: Math.random().toString(36).substr(2, 9), ...item });
+            const autoExclude = item.type === 'income' &&
+                               (item.category.toLowerCase().includes('loan') ||
+                                item.category.toLowerCase().includes('repayment') ||
+                                item.category.toLowerCase().includes('lone'));
+            onAdd({
+              id: Math.random().toString(36).substr(2, 9),
+              ...item,
+              excludeFromAnalytics: autoExclude
+            });
           });
         } else {
           throw new Error("Empty extractions");
@@ -164,12 +193,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     { label: 'Internet', icon: 'wifi', type: 'expense' as const },
     { label: 'Groceries', icon: 'shopping_cart', type: 'expense' as const },
     { label: 'Transport', icon: 'directions_transit', type: 'expense' as const },
-    { label: 'Municipal Office', icon: 'account_balance', type: 'expense' as const },
-    { label: 'Electricity', icon: 'bolt', type: 'expense' as const },
-    { label: 'Water', icon: 'water_drop', type: 'expense' as const },
-    { label: 'Dining', icon: 'restaurant', type: 'expense' as const },
-    { label: 'Health', icon: 'favorite', type: 'expense' as const },
-    { label: 'Education', icon: 'school', type: 'expense' as const },
     { label: 'Deliveroo', icon: 'delivery_dining', type: 'income' as const },
     { label: 'Glovo', icon: 'moped', type: 'income' as const },
     { label: 'Salary', icon: 'payments', type: 'income' as const },
@@ -185,6 +208,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       type: preset.type,
       amount: '',
       description: '',
+      excludeFromAnalytics: false
     }));
     setShowAdd(true);
   };
@@ -216,19 +240,14 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
 
   const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current) return;
-
     const context = canvasRef.current.getContext('2d');
     if (!context) return;
-
     canvasRef.current.width = videoRef.current.videoWidth;
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height);
-
     const imageData = canvasRef.current.toDataURL('image/jpeg');
-
     stopCamera();
     setIsScanning(false);
-
     setIsUploading(true);
     try {
       const data = await analyzeReceipt(imageData);
@@ -238,7 +257,8 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           category: data.category,
           type: data.type,
           description: data.description,
-          date: data.date
+          date: data.date,
+          excludeFromAnalytics: data.type === 'income' && (data.category.toLowerCase().includes('loan') || data.category.toLowerCase().includes('repayment'))
         });
         setShowAdd(true);
       }
@@ -250,7 +270,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   };
 
   return (
-    <div className="space-y-6 pb-40 animate-fadeIn">
+    <div className="space-y-6 pb-64 animate-fadeIn">
       {/* Page Header */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -302,7 +322,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         </div>
       </div>
 
-      {/* AI Scanning Modal/Overlay */}
       {isScanning && (
         <div className="fixed inset-0 z-[60] bg-black flex flex-col items-center justify-center p-6 animate-fadeIn">
           <div className="relative w-full aspect-[3/4] rounded-[2rem] overflow-hidden border-4 border-primary/50 shadow-2xl ai-glow">
@@ -310,9 +329,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
             <div className="absolute top-0 left-0 w-full h-1 bg-primary/50 shadow-[0_0_15px_rgba(19,127,236,1)] animate-[scan_2s_infinite]"></div>
           </div>
           <p className="text-white font-black uppercase text-[10px] tracking-widest mt-8 opacity-70">Align receipt within frame</p>
-
           <div className="mt-auto mb-10 flex flex-col gap-4 w-full">
-            {/* Camera Options Toggle */}
             <div className="flex gap-2 justify-center">
               <button
                 onClick={() => { setFacingMode('user'); startScanning('user'); }}
@@ -327,13 +344,9 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                 Back
               </button>
             </div>
-
             <div className="flex gap-4 w-full">
               <button
-                onClick={() => {
-                  stopCamera();
-                  setIsScanning(false);
-                }}
+                onClick={() => { stopCamera(); setIsScanning(false); }}
                 className="flex-1 py-4 bg-white/10 text-white font-black rounded-2xl uppercase text-[10px] tracking-widest"
               >
                 Cancel
@@ -350,7 +363,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         </div>
       )}
 
-      {/* Sleek Entry Form */}
       {(showAdd || isUploading) && (
         <div className={`bg-white dark:bg-slate-900 rounded-[2.5rem] p-7 border border-slate-100 dark:border-slate-800 shadow-2xl animate-fadeIn space-y-6 relative overflow-hidden ${isUploading ? 'opacity-70 pointer-events-none' : ''}`}>
           {isUploading && (
@@ -359,7 +371,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               <p className="font-black text-[10px] uppercase tracking-widest text-primary">Gemini AI is analyzing...</p>
             </div>
           )}
-
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-black text-slate-900 dark:text-white">Transaction Details</h3>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
@@ -373,7 +384,6 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               >Expense</button>
             </div>
           </div>
-
           <div className="space-y-4">
             <div className="space-y-1">
               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Value (€)</label>
@@ -393,7 +403,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                   value={formData.category}
                   onChange={e => setFormData({ ...formData, category: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
-                  placeholder="Food, Rent..."
+                  placeholder="Food..."
                 />
               </div>
               <div className="space-y-1">
@@ -413,9 +423,26 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
-                placeholder="Additional notes..."
+                placeholder="Notes..."
               />
             </div>
+
+            {/* Exclude Toggle */}
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-transparent hover:border-primary/20 transition-all cursor-pointer" onClick={() => setFormData({...formData, excludeFromAnalytics: !formData.excludeFromAnalytics})}>
+              <div className="flex items-center gap-3">
+                <div className={`size-10 rounded-xl flex items-center justify-center ${formData.excludeFromAnalytics ? 'bg-primary/20 text-primary' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}`}>
+                  <span className="material-symbols-outlined text-xl">{formData.excludeFromAnalytics ? 'visibility_off' : 'visibility'}</span>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Exclude from Analytics</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase">Don't impact daily projections</p>
+                </div>
+              </div>
+              <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.excludeFromAnalytics ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                <div className={`absolute top-1 size-4 bg-white rounded-full transition-all ${formData.excludeFromAnalytics ? 'left-5' : 'left-1'}`} />
+              </div>
+            </div>
+
             <button
               onClick={() => handleSubmit()}
               className={`w-full py-5 rounded-[1.5rem] font-black text-white shadow-xl transition-all active:scale-95 ${formData.type === 'income' ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-rose-500 shadow-rose-500/20'}`}
@@ -430,16 +457,21 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       <div className="space-y-4">
         {transactions.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
           <div key={t.id} className="group relative bg-white dark:bg-slate-900/50 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 p-5 flex items-center justify-between transition-all hover:border-primary/20">
-            <div className="flex items-center gap-4">
-              <div className={`size-12 rounded-2xl flex items-center justify-center font-black ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              <div className={`size-12 rounded-2xl flex items-center justify-center font-black flex-shrink-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                 {t.category.charAt(0)}
               </div>
-              <div>
-                <h4 className="text-sm font-black text-slate-900 dark:text-white">{t.category}</h4>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">{t.date} • {t.description || 'Auto-Logged'}</p>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">{t.category}</h4>
+                  {t.excludeFromAnalytics && (
+                    <span className="material-symbols-outlined text-[14px] text-slate-400" title="Excluded from analytics">visibility_off</span>
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">{t.date} • {t.description || 'Auto-Logged'}</p>
               </div>
             </div>
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-end flex-shrink-0 ml-4">
               <span className={`text-lg font-black tracking-tight ${t.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
                 {t.type === 'income' ? '+' : '-'}€{t.amount.toLocaleString()}
               </span>
@@ -454,17 +486,15 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               <span className="material-symbols-outlined text-4xl text-slate-300">receipt_long</span>
             </div>
             <h4 className="font-black text-slate-400 uppercase tracking-widest text-sm">Empty Ledger</h4>
-            <p className="text-xs text-slate-500 max-w-[200px] mx-auto">Start by adding your first income or expense entry.</p>
           </div>
         )}
       </div>
 
       {/* Floating Batch Action */}
-      <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-40 no-print flex gap-2 w-max max-w-[90vw]">
+      <div className="fixed bottom-48 left-1/2 -translate-x-1/2 z-40 no-print flex gap-2 w-max max-w-[90vw]">
         <button
           onClick={handleDownloadTemplate}
           className="flex items-center gap-2 bg-primary text-white px-4 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all text-center justify-center whitespace-nowrap"
-          title="Download CSV Template"
         >
           <span className="material-symbols-outlined text-sm">download</span>
           <span className="hidden sm:inline">Template</span>
@@ -476,20 +506,11 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           <span className="material-symbols-outlined text-sm">upload_file</span>
           <span>Import CSV</span>
         </button>
-        <input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          accept=".csv"
-          onChange={handleFileUpload}
-        />
+        <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
       </div>
 
       <style>{`
-        @keyframes scan {
-          0% { top: 0; }
-          100% { top: 100%; }
-        }
+        @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
       `}</style>
     </div>
   );

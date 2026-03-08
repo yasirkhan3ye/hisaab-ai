@@ -218,9 +218,11 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         </section>
       ))}
 
-      <p className="text-center text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] pt-10">
-        powered by MJK.IT
-      </p>
+      <div className="overflow-hidden whitespace-nowrap pt-10 pb-5">
+        <p className="inline-block animate-marquee text-[10px] text-primary font-black uppercase tracking-[0.5em] opacity-50">
+          Hisaab AI v1.1.0 - Premium Financial Intelligence - Stable Release - powered by MJK.IT
+        </p>
+      </div>
     </div>
   );
 };

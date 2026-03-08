@@ -82,29 +82,37 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('hisaab_profile');
     return saved ? JSON.parse(saved) : initialProfile;
   });
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [lendRecords, setLendRecords] = useState<LendRecord[]>([]);
+
+  // Initialize from LocalStorage to prevent "vanishing" UI
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const saved = localStorage.getItem('fingemini_txs');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [lendRecords, setLendRecords] = useState<LendRecord[]>(() => {
+    const saved = localStorage.getItem('fingemini_lend');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Initial Data Load
+  // Initial Data Load from Cloud
   useEffect(() => {
     if (syncWord) {
       const loadData = async () => {
-        setLoading(true);
+        // We don't set loading to true here to allow local data to show immediately
         const cloudTxs = await fetchDataFromCloud('transactions');
         const cloudLend = await fetchDataFromCloud('lend_records');
         const cloudProfile = await fetchDataFromCloud('profiles');
 
-        if (cloudTxs) setTransactions(cloudTxs);
-        if (cloudLend) setLendRecords(cloudLend);
+        // Only update if we actually got data from the cloud
+        if (cloudTxs && cloudTxs.length > 0) setTransactions(cloudTxs);
+        if (cloudLend && cloudLend.length > 0) setLendRecords(cloudLend);
         if (cloudProfile && cloudProfile[0]) setProfile(cloudProfile[0]);
-        setLoading(false);
       };
       loadData();
     }
   }, [syncWord]);
 
-  // Syncing to Cloud
+  // Syncing to Cloud & LocalStorage
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('hisaab_profile', JSON.stringify(profile));
@@ -115,14 +123,18 @@ const App: React.FC = () => {
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('fingemini_txs', JSON.stringify(transactions));
-      import('./services/supabaseClient').then(m => m.syncDataToCloud('transactions', transactions));
+      if (transactions.length > 0) {
+        import('./services/supabaseClient').then(m => m.syncDataToCloud('transactions', transactions));
+      }
     }
   }, [transactions, syncWord]);
 
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('fingemini_lend', JSON.stringify(lendRecords));
-      import('./services/supabaseClient').then(m => m.syncDataToCloud('lend_records', lendRecords));
+      if (lendRecords.length > 0) {
+        import('./services/supabaseClient').then(m => m.syncDataToCloud('lend_records', lendRecords));
+      }
     }
   }, [lendRecords, syncWord]);
 
@@ -200,15 +212,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (loading) {
-    return (
-      <div className="h-screen bg-[#020617] flex flex-col items-center justify-center text-white p-8">
-        <div className="size-10 border-2 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
-        <p className="text-[10px] font-black uppercase tracking-widest animate-pulse">Fetching Cloud Data...</p>
-      </div>
-    );
-  }
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       <UserContext.Provider value={{ profile, updateProfile }}>
@@ -220,7 +223,7 @@ const App: React.FC = () => {
                   <Route path="/" element={<Dashboard transactions={transactions} />} />
                   <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} />} />
                   <Route path="/analytics" element={<Analytics transactions={transactions} />} />
-                  <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} />} />
+                  <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
                   <Route path="/menu" element={<Menu lendRecords={lendRecords} />} />
                 </Routes>
               </Layout>
