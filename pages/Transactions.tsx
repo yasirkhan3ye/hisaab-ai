@@ -3,6 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Transaction, TransactionType } from '../types';
 import { extractTransactionsFromText, analyzeReceipt } from '../services/geminiService';
+import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { Capacitor } from '@capacitor/core';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -15,6 +17,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   const [showAdd, setShowAdd] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -36,6 +39,125 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       setShowAdd(true);
     }
   }, [searchParams]);
+
+  const startVoiceCapture = async () => {
+    setIsListening(true);
+    try {
+      // Use Capacitor for Native, Web Speech API for Browser
+      if (Capacitor.isNativePlatform()) {
+        console.log('Using Native Speech Recognition');
+        const { available } = await SpeechRecognition.available();
+        if (!available) {
+            alert('Speech recognition is not available on this device.');
+            setIsListening(false);
+            return;
+        }
+
+        const status = await SpeechRecognition.checkPermissions();
+        if ((status as any).display !== 'granted') {
+            const newStatus = await SpeechRecognition.requestPermissions();
+            if ((newStatus as any).display !== 'granted') {
+                setIsListening(false);
+                return;
+            }
+        }
+
+        SpeechRecognition.start({
+          language: 'en-US',
+          partialResults: false,
+          popup: true,
+        });
+
+        const result = await new Promise<string>(async (resolve, reject) => {
+            const resultListener = await SpeechRecognition.addListener('results' as any, (data: any) => {
+                if (data.matches && data.matches.length > 0) {
+                    resultListener.remove();
+                    resolve(data.matches[0]);
+                }
+            });
+
+            const stateListener = await SpeechRecognition.addListener('listeningState' as any, (state: any) => {
+                if (state.status === 'stopped') {
+                    stateListener.remove();
+                    setTimeout(() => reject('Stopped without results'), 500);
+                }
+            });
+        });
+
+        processVoiceResult(result);
+      } else {
+        // Browser Fallback (Web Speech API)
+        console.log('Using Web Speech API Fallback');
+        const SpeechRecognitionWeb = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognitionWeb) {
+            alert('Speech recognition is not supported in this browser. Try Chrome or Edge.');
+            setIsListening(false);
+            return;
+        }
+
+        const recognition = new SpeechRecognitionWeb();
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (event: any) => {
+          const text = event.results[0][0].transcript;
+          processVoiceResult(text);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Web Speech API Error:', event.error);
+          setIsListening(false);
+          if (event.error === 'not-allowed') {
+              alert('Microphone permission denied. Please enable it in browser settings.');
+          } else {
+              alert(`Speech recognition error: ${event.error}`);
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognition.start();
+      }
+    } catch (err) {
+      console.error('Speech recognition error:', err);
+      setIsListening(false);
+      if (err !== 'Stopped without results') {
+          alert('Could not start speech recognition. Please check your mic settings.');
+      }
+    }
+  };
+
+  const processVoiceResult = async (text: string) => {
+    setIsListening(false);
+    setIsUploading(true);
+    try {
+        const parsed = await extractTransactionsFromText(text);
+        if (parsed && parsed.length > 0) {
+            const item = parsed[0];
+            setFormData({
+                amount: item.amount.toString(),
+                category: item.category,
+                type: item.type as TransactionType,
+                description: item.description,
+                date: item.date,
+                excludeFromAnalytics: item.type === 'income' && 
+                                     (item.category.toLowerCase().includes('loan') || 
+                                      item.category.toLowerCase().includes('repayment'))
+            });
+            setShowAdd(true);
+        } else {
+            alert("Gemini couldn't extract transaction details. Try being more specific: 'Spent 50 Euro on Groceries'.");
+        }
+    } catch (err) {
+        console.error('AI Parsing error:', err);
+        alert('Failed to parse your voice input. Please try again.');
+    } finally {
+        setIsUploading(false);
+    }
+  };
 
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -278,6 +400,12 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transaction Feed</p>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={() => startVoiceCapture()}
+            className={`size-12 rounded-2xl flex items-center justify-center transition-all ${isListening ? 'bg-primary text-white animate-pulse shadow-lg shadow-primary/50' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'}`}
+          >
+            <span className="material-symbols-outlined text-2xl font-black">{isListening ? 'mic' : 'mic_none'}</span>
+          </button>
           <button
             onClick={() => startScanning()}
             className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center transition-all hover:bg-primary hover:text-white"

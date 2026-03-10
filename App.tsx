@@ -48,6 +48,19 @@ export const useNotifications = () => {
   return context;
 };
 
+// Global Sync Context
+interface SyncContextType {
+  isSyncing: boolean;
+  triggerManualSync: () => Promise<void>;
+  lastSyncTime: string;
+}
+export const SyncContext = createContext<SyncContextType | undefined>(undefined);
+export const useSync = () => {
+  const context = useContext(SyncContext);
+  if (!context) throw new Error('useSync must be used within a SyncProvider');
+  return context;
+};
+
 class ErrorBoundary extends React.Component<any, any> {
   public state = { hasError: false };
   public static getDerivedStateFromError(_: Error) { return { hasError: true }; }
@@ -55,7 +68,7 @@ class ErrorBoundary extends React.Component<any, any> {
     if (this.state.hasError) {
       return (
         <div className="h-screen flex flex-col items-center justify-center p-8 text-center bg-[#020617] text-white">
-          <span className="material-symbols-outlined text-rose-500 text-6xl mb-4">error</span>
+          <span className="material-icons text-rose-500 text-6xl mb-4">error</span>
           <h2 className="text-xl font-black mb-2">Something went wrong</h2>
           <button onClick={() => window.location.reload()} className="px-8 py-3 bg-primary rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/30">Refresh</button>
         </div>
@@ -70,7 +83,8 @@ const initialProfile: UserProfile = { name: 'Yasir khan', avatarSeed: 'Aneka' };
 const App: React.FC = () => {
   const [syncWord, setSyncWord] = useState<string | null>(localStorage.getItem('hisaab_sync_word'));
   const [inputWord, setInputWord] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(new Date().toLocaleTimeString());
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('hisaab_theme');
@@ -83,7 +97,6 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : initialProfile;
   });
 
-  // Initialize from LocalStorage to prevent "vanishing" UI
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
     const saved = localStorage.getItem('fingemini_txs');
     return saved ? JSON.parse(saved) : [];
@@ -94,25 +107,52 @@ const App: React.FC = () => {
   });
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Initial Data Load from Cloud
-  useEffect(() => {
-    if (syncWord) {
-      const loadData = async () => {
-        // We don't set loading to true here to allow local data to show immediately
-        const cloudTxs = await fetchDataFromCloud('transactions');
-        const cloudLend = await fetchDataFromCloud('lend_records');
-        const cloudProfile = await fetchDataFromCloud('profiles');
+  const pullDataFromCloud = async () => {
+    if (!syncWord) return;
+    setIsSyncing(true);
+    try {
+      const cloudTxs = await fetchDataFromCloud('transactions');
+      const cloudLend = await fetchDataFromCloud('lend_records');
+      const cloudProfile = await fetchDataFromCloud('profiles');
 
-        // Only update if we actually got data from the cloud
-        if (cloudTxs && cloudTxs.length > 0) setTransactions(cloudTxs);
-        if (cloudLend && cloudLend.length > 0) setLendRecords(cloudLend);
-        if (cloudProfile && cloudProfile[0]) setProfile(cloudProfile[0]);
-      };
-      loadData();
+      // Smart Merge logic to prevent data loss
+      if (cloudTxs && cloudTxs.length > 0) {
+        setTransactions(prev => {
+          const combined = [...prev];
+          cloudTxs.forEach(ctx => {
+            if (!combined.find(p => p.id === ctx.id)) combined.push(ctx);
+          });
+          return combined;
+        });
+      }
+      if (cloudLend && cloudLend.length > 0) {
+        setLendRecords(prev => {
+          const combined = [...prev];
+          cloudLend.forEach(cl => {
+            if (!combined.find(p => p.id === cl.id)) combined.push(cl);
+          });
+          return combined;
+        });
+      }
+      if (cloudProfile && cloudProfile[0]) setProfile(cloudProfile[0]);
+      setLastSyncTime(new Date().toLocaleTimeString());
+    } finally {
+      setIsSyncing(false);
     }
+  };
+
+  useEffect(() => {
+    if (syncWord) pullDataFromCloud();
   }, [syncWord]);
 
-  // Syncing to Cloud & LocalStorage
+  // Periodic Auto-Sync (every 5 mins)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (syncWord) pullDataFromCloud();
+    }, 300000);
+    return () => clearInterval(timer);
+  }, [syncWord]);
+
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('hisaab_profile', JSON.stringify(profile));
@@ -182,7 +222,7 @@ const App: React.FC = () => {
 
         <div className="w-full max-w-sm space-y-8 relative z-10 text-center">
           <div className="inline-flex size-16 items-center justify-center rounded-2xl bg-white/5 border border-white/10 shadow-2xl mb-4">
-            <span className="material-symbols-outlined text-primary text-4xl">sync</span>
+            <span className="material-icons text-primary text-4xl">sync</span>
           </div>
           <div className="space-y-2">
             <h1 className="text-3xl font-black tracking-tighter">Setup Sync</h1>
@@ -213,25 +253,27 @@ const App: React.FC = () => {
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <UserContext.Provider value={{ profile, updateProfile }}>
-        <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
-          <ErrorBoundary>
-            <HashRouter>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Dashboard transactions={transactions} />} />
-                  <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} />} />
-                  <Route path="/analytics" element={<Analytics transactions={transactions} />} />
-                  <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
-                  <Route path="/menu" element={<Menu lendRecords={lendRecords} />} />
-                </Routes>
-              </Layout>
-            </HashRouter>
-          </ErrorBoundary>
-        </NotificationContext.Provider>
-      </UserContext.Provider>
-    </ThemeContext.Provider>
+    <SyncContext.Provider value={{ isSyncing, triggerManualSync: pullDataFromCloud, lastSyncTime }}>
+      <ThemeContext.Provider value={{ theme, toggleTheme }}>
+        <UserContext.Provider value={{ profile, updateProfile }}>
+          <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
+            <ErrorBoundary>
+              <HashRouter>
+                <Layout>
+                  <Routes>
+                    <Route path="/" element={<Dashboard transactions={transactions} />} />
+                    <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} />} />
+                    <Route path="/analytics" element={<Analytics transactions={transactions} />} />
+                    <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
+                    <Route path="/menu" element={<Menu lendRecords={lendRecords} />} />
+                  </Routes>
+                </Layout>
+              </HashRouter>
+            </ErrorBoundary>
+          </NotificationContext.Provider>
+        </UserContext.Provider>
+      </ThemeContext.Provider>
+    </SyncContext.Provider>
   );
 };
 

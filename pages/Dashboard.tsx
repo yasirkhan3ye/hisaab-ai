@@ -118,7 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 group hover:bg-white/10 transition-colors min-w-0">
               <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest truncate block">Total Inflow</span>
-              <p className="text-lg font-black text-white">+€{monthlyIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              <p className="text-lg font-black text-white truncate">+€{monthlyIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               <p className="text-[8px] text-slate-400 font-black mt-1 uppercase truncate">≈ ₨{(monthlyIncome * pkrRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 group hover:bg-white/10 transition-colors min-w-0">
@@ -131,6 +131,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
         <div className="absolute -bottom-10 -right-10 opacity-5">
           <span className="material-symbols-outlined text-[150px]">analytics</span>
         </div>
+      </div>
+
+      {/* Monthly Quick Add - MOVED ABOVE CATEGORICAL ANALYSIS */}
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => navigate('/transactions?type=income')}
+          className="flex items-center justify-between p-4 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 active:scale-95 transition-all group min-w-0"
+        >
+          <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
+            <span className="text-[10px] font-black uppercase text-emerald-500 mb-1 truncate w-full">New Entry</span>
+            <span className="text-sm font-black group-hover:text-emerald-500 transition-colors truncate w-full text-left">Income</span>
+          </div>
+          <div className="size-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
+            <span className="material-symbols-outlined text-xl font-black">add_circle</span>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/transactions?type=expense')}
+          className="flex items-center justify-between p-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-all group min-w-0"
+        >
+          <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
+            <span className="text-[10px] font-black uppercase text-rose-500 mb-1 truncate w-full">New Entry</span>
+            <span className="text-sm font-black group-hover:text-rose-500 transition-colors truncate w-full text-left">Expense</span>
+          </div>
+          <div className="size-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/20 flex-shrink-0">
+            <span className="material-symbols-outlined text-xl font-black">remove_circle</span>
+          </div>
+        </button>
       </div>
 
       {/* Category Intelligence Toggle */}
@@ -182,34 +210,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
           )}
         </div>
       </section>
-
-      {/* Monthly Quick Add */}
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={() => navigate('/transactions?type=income')}
-          className="flex items-center justify-between p-4 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 active:scale-95 transition-all group min-w-0"
-        >
-          <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
-            <span className="text-[10px] font-black uppercase text-emerald-500 mb-1 truncate w-full">New Entry</span>
-            <span className="text-sm font-black group-hover:text-emerald-500 transition-colors truncate w-full text-left">Income</span>
-          </div>
-          <div className="size-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
-            <span className="material-symbols-outlined text-xl font-black">add_circle</span>
-          </div>
-        </button>
-        <button
-          onClick={() => navigate('/transactions?type=expense')}
-          className="flex items-center justify-between p-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-all group min-w-0"
-        >
-          <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
-            <span className="text-[10px] font-black uppercase text-rose-500 mb-1 truncate w-full">New Entry</span>
-            <span className="text-sm font-black group-hover:text-rose-500 transition-colors truncate w-full text-left">Expense</span>
-          </div>
-          <div className="size-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/20 flex-shrink-0">
-            <span className="material-symbols-outlined text-xl font-black">remove_circle</span>
-          </div>
-        </button>
-      </div>
 
       {/* Activity Feed with Split View */}
       <section>

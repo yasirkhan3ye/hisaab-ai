@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => {
         host: '0.0.0.0',
       },
       plugins: [react()],
+      build: {
+        target: ['chrome60', 'safari11', 'es2015'], // Support Android 10+ (WebView 60+)
+        cssTarget: 'chrome60',
+        modulePreload: {
+          polyfill: true
+        },
+      },
       define: {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)

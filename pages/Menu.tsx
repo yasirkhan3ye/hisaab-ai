@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUser, useTheme, useNotifications } from '../App';
+import { useUser, useTheme, useNotifications, useSync } from '../App';
 import { LendRecord } from '../types';
 
 interface MenuProps {
@@ -12,6 +12,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   const { profile, updateProfile } = useUser();
   const { theme, toggleTheme } = useTheme();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { isSyncing, triggerManualSync, lastSyncTime } = useSync();
   const [showEdit, setShowEdit] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [tempPhoto, setTempPhoto] = useState(profile.photo);
@@ -43,26 +44,18 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
     }
   };
 
-  // Logical Reminders
-  const reminders = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
-    return lendRecords.filter(r => {
-      if (r.status === 'returned') return false;
-      if (!r.dueDate) return false;
-      return r.dueDate <= today;
-    });
-  }, [lendRecords]);
-
   const menuGroups = [
     {
       title: "Cloud & Syncing",
       items: [
         {
-          icon: 'sync',
+          icon: isSyncing ? 'sync' : 'sync',
+          iconClass: isSyncing ? 'animate-spin' : '',
           label: 'Secret Sync Word',
-          sub: syncWord || 'Not Configured',
-          action: () => { },
-          color: 'text-emerald-500'
+          sub: isSyncing ? 'Synchronizing now...' : `Active: ${syncWord || 'MCMXCAD3YE'}`,
+          sub2: `Last sync: ${lastSyncTime}`,
+          action: () => triggerManualSync(),
+          color: isSyncing ? 'text-primary' : 'text-emerald-500'
         },
         {
           icon: 'cloud_off',
@@ -98,7 +91,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   return (
     <div className="space-y-8 animate-fadeIn pb-20">
       <header className="px-1">
-        <h2 className="text-2xl font-black tracking-tighter">System Console</h2>
+        <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">System Console</h2>
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configuration Center</p>
       </header>
 
@@ -123,7 +116,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
           onClick={() => setShowEdit(true)}
           className="size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 hover:text-primary transition-colors active:scale-90"
         >
-          <span className="material-symbols-outlined text-xl">edit</span>
+          <span className="material-icons text-xl">edit</span>
         </button>
       </div>
 
@@ -134,7 +127,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
             <div className="flex justify-between items-center">
               <h3 className="text-xl font-black">Edit Personal Profile</h3>
               <button onClick={() => setShowEdit(false)} className="text-slate-400">
-                <span className="material-symbols-outlined">close</span>
+                <span className="material-icons">close</span>
               </button>
             </div>
 
@@ -151,7 +144,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute -bottom-2 -right-2 size-10 bg-primary text-white rounded-xl shadow-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-all"
                 >
-                  <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                  <span className="material-icons text-lg">add_a_photo</span>
                 </button>
                 <input
                   type="file"
@@ -201,17 +194,18 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
               >
                 <div className="flex items-center gap-4 text-left">
                   <div className={`size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center ${item.color} group-active:scale-90 transition-transform relative`}>
-                    <span className="material-symbols-outlined text-xl">{item.icon}</span>
+                    <span className={`material-icons text-xl ${'iconClass' in item ? item.iconClass : ''}`}>{item.icon}</span>
                     {('badge' in item && item.badge) && (
                       <span className="absolute -top-1 -right-1 size-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-bounce"></span>
                     )}
                   </div>
                   <div>
                     <p className="text-sm font-black text-slate-900 dark:text-white">{item.label}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">{item.sub}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">{item.sub}</p>
+                    {('sub2' in item) && <p className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">{item.sub2}</p>}
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-slate-300 text-sm group-hover:translate-x-1 transition-transform">arrow_forward_ios</span>
+                <span className="material-icons text-slate-300 text-sm group-hover:translate-x-1 transition-transform">arrow_forward_ios</span>
               </button>
             ))}
           </div>
