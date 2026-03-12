@@ -84,7 +84,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
     } else {
       const amount = parseFloat(formData.amount);
       onAdd({
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).slice(2, 11),
         personName: formData.personName,
         amount: amount,
         currency: formData.currency,
@@ -97,7 +97,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
       });
 
       onAddTransaction({
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).slice(2, 11),
         amount: formData.currency === 'EUR' ? amount : amount / (currentPkrRate || 1),
         category: 'Lending',
         date: formData.dateLent,
@@ -117,7 +117,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
 
     const repayAmount = parseFloat(repayData.amount);
     const newRepayment: Repayment = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).slice(2, 11),
       amount: repayAmount,
       currency: repayData.currency,
       exchangeRateAtRepayment: currentPkrRate,
@@ -139,7 +139,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
     onUpdate(updatedRecord);
 
     onAddTransaction({
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).slice(2, 11),
       amount: repayData.currency === 'EUR' ? repayAmount : repayAmount / (currentPkrRate || 1),
       category: 'Loan Repayment',
       date: repayData.date,
@@ -215,7 +215,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
 
         if (personName && !isNaN(parseFloat(amount))) {
           newRecords.push({
-            id: Math.random().toString(36).substr(2, 9),
+            id: Math.random().toString(36).slice(2, 11),
             personName,
             amount: parseFloat(amount),
             currency: (currency as CurrencyType) || 'EUR',

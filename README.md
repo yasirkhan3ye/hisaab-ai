@@ -10,11 +10,15 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Y2eXHmDApz_zMAKpoG1hfV
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+1. Install dependencies: `npm install`
+2. Copy [.env.example](.env.example) to `.env.local` and fill in:
+   - `GEMINI_API_KEY` – your Gemini API key (server-side only, not exposed to client)
+   - `VITE_SUPABASE_URL` – Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY` – Supabase anon key (JWT format: `eyJ...`)
 3. Run the app:
-   `npm run dev`
+   - **Full stack (with AI):** `npm run dev:full` or `vercel dev` – runs frontend + API (requires Vercel CLI)
+   - **Frontend only:** `npm run dev` – AI features need the API (use `vercel dev` or deploy to Vercel)
+
+**Deploy:** Set `GEMINI_API_KEY` in your Vercel project Environment Variables. The API key is never exposed to the client.

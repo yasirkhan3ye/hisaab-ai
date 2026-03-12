@@ -69,19 +69,44 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         });
 
         const result = await new Promise<string>(async (resolve, reject) => {
+            let settled = false;
+            let stopTimeoutId: ReturnType<typeof setTimeout> | null = null;
+            let globalTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
             const resultListener = await SpeechRecognition.addListener('results' as any, (data: any) => {
+                if (settled) return;
                 if (data.matches && data.matches.length > 0) {
+                    settled = true;
+                    if (stopTimeoutId) clearTimeout(stopTimeoutId);
+                    if (globalTimeoutId) clearTimeout(globalTimeoutId);
                     resultListener.remove();
+                    stateListener.remove();
                     resolve(data.matches[0]);
                 }
             });
 
             const stateListener = await SpeechRecognition.addListener('listeningState' as any, (state: any) => {
+                if (settled) return;
                 if (state.status === 'stopped') {
-                    stateListener.remove();
-                    setTimeout(() => reject('Stopped without results'), 500);
+                    stopTimeoutId = setTimeout(() => {
+                        if (settled) return;
+                        settled = true;
+                        if (globalTimeoutId) clearTimeout(globalTimeoutId);
+                        resultListener.remove();
+                        stateListener.remove();
+                        reject('Stopped without results');
+                    }, 500);
                 }
             });
+
+            globalTimeoutId = setTimeout(() => {
+                if (settled) return;
+                settled = true;
+                if (stopTimeoutId) clearTimeout(stopTimeoutId);
+                resultListener.remove();
+                stateListener.remove();
+                reject('Speech recognition timed out');
+            }, 30000);
         });
 
         processVoiceResult(result);
@@ -137,15 +162,16 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         const parsed = await extractTransactionsFromText(text);
         if (parsed && parsed.length > 0) {
             const item = parsed[0];
+            const cat = (item.category ?? '').toString();
+            const desc = (item.description ?? '').toString();
             setFormData({
-                amount: item.amount.toString(),
-                category: item.category,
-                type: item.type as TransactionType,
-                description: item.description,
-                date: item.date,
-                excludeFromAnalytics: item.type === 'income' && 
-                                     (item.category.toLowerCase().includes('loan') || 
-                                      item.category.toLowerCase().includes('repayment'))
+                amount: (item.amount ?? 0).toString(),
+                category: cat,
+                type: (item.type ?? 'expense') as TransactionType,
+                description: desc,
+                date: item.date ?? new Date().toISOString().split('T')[0],
+                excludeFromAnalytics: item.type === 'income' &&
+                    (cat.toLowerCase().includes('loan') || cat.toLowerCase().includes('repayment') || cat.toLowerCase().includes('lone'))
             });
             setShowAdd(true);
         } else {
@@ -171,7 +197,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                            formData.category.toLowerCase().includes('lone')));
 
     onAdd({
-      id: Math.random().toString(36).substr(2, 9),
+      id: Math.random().toString(36).slice(2, 11),
       amount: parseFloat(formData.amount),
       category: formData.category,
       type: formData.type,
@@ -244,7 +270,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                                         category.toLowerCase().includes('lone'));
 
                     onAdd({
-                      id: Math.random().toString(36).substr(2, 9),
+                      id: Math.random().toString(36).slice(2, 11),
                       date: normalizeDate(values[dateIdx] || new Date().toISOString().split('T')[0]),
                       amount: amount,
                       category: category,
@@ -271,12 +297,11 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         const extracted = await extractTransactionsFromText(content);
         if (extracted && extracted.length > 0) {
           extracted.forEach((item: any) => {
+            const cat = (item.category ?? '').toString().toLowerCase();
             const autoExclude = item.type === 'income' &&
-                               (item.category.toLowerCase().includes('loan') ||
-                                item.category.toLowerCase().includes('repayment') ||
-                                item.category.toLowerCase().includes('lone'));
+              (cat.includes('loan') || cat.includes('repayment') || cat.includes('lone'));
             onAdd({
-              id: Math.random().toString(36).substr(2, 9),
+              id: Math.random().toString(36).slice(2, 11),
               ...item,
               excludeFromAnalytics: autoExclude
             });

@@ -1,97 +1,50 @@
-import { GoogleGenAI, Type } from "@google/genai";
+/**
+ * AI service – calls server-side API (keeps API key secure).
+ * For local development with AI features, run: vercel dev
+ */
 
-// Always use process.env.API_KEY directly in the configuration object.
-export const getGeminiClient = () => {
-  return new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-};
+const API_BASE = '/api';
+
+async function callGemini<T>(action: string, payload: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}/gemini`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, payload }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error || 'AI request failed');
+  }
+  return res.json();
+}
 
 export const extractTransactionsFromText = async (rawContent: string) => {
-  const ai = getGeminiClient();
-  const prompt = `Analyze financial data for Hisaab AI. Extract amount, category, date (YYYY-MM-DD), type (income/expense), and description. Data: ${rawContent}`;
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: [{ parts: [{ text: prompt }] }],
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            amount: { type: Type.NUMBER },
-            category: { type: Type.STRING },
-            date: { type: Type.STRING },
-            type: { type: Type.STRING },
-            description: { type: Type.STRING }
-          },
-          required: ['amount', 'category', 'date', 'type', 'description'],
-          propertyOrdering: ["amount", "category", "date", "type", "description"]
-        }
-      }
-    }
-  });
-  try { return JSON.parse(response.text.trim()); } catch { return []; }
+  try {
+    const parsed = await callGemini<unknown[]>('extract', { rawContent });
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 };
 
 export const analyzeReceipt = async (base64Image: string) => {
-  const ai = getGeminiClient();
-  const data = base64Image.split(',')[1];
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            mimeType: 'image/jpeg',
-            data: data
-          }
-        },
-        {
-          text: 'Analyze this receipt image for Hisaab AI. Extract: amount (number), category (one word), date (YYYY-MM-DD), type (expense/income), and description. Output JSON.'
-        }
-      ]
-    },
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          amount: { type: Type.NUMBER },
-          category: { type: Type.STRING },
-          date: { type: Type.STRING },
-          type: { type: Type.STRING },
-          description: { type: Type.STRING }
-        },
-        required: ['amount', 'category', 'date', 'type', 'description'],
-        propertyOrdering: ["amount", "category", "date", "type", "description"]
-      }
-    }
-  });
-
+  if (!base64Image || typeof base64Image !== 'string') return null;
+  const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
+  if (!data) return null;
   try {
-    return JSON.parse(response.text.trim());
+    return await callGemini<{ amount: number; category: string; date: string; type: string; description: string } | null>(
+      'receipt',
+      { base64Image }
+    );
   } catch (err) {
-    console.error("Failed to parse receipt data", err);
+    console.error('Failed to parse receipt data', err);
     return null;
   }
 };
 
 export const fetchExchangeRates = async (baseCurrency: string, targets: string[]) => {
-  const ai = getGeminiClient();
-  const prompt = `Fetch current live exchange rate for 1 ${baseCurrency} to ${targets.join(', ')}. Use Google Search grounding. Return ONLY a JSON object containing the rates.`;
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: [{ parts: [{ text: prompt }] }],
-    config: {
-      tools: [{ googleSearch: {} }],
-    }
-  });
-  // Since search grounding response.text might not be clean JSON, use a safer extraction.
   try {
-    const text = response.text.trim();
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    return jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    return await callGemini<Record<string, number> | null>('rates', { baseCurrency, targets });
   } catch {
     return null;
   }

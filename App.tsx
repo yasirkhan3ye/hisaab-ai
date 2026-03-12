@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect, ErrorInfo, ReactNode, createContext, useContext } from 'react';
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
+import { Login } from './pages/Login';
 import { Transactions } from './pages/Transactions';
 import { Analytics } from './pages/Analytics';
 import { Lend } from './pages/Lend';
 import { Menu } from './pages/Menu';
 import { Transaction, LendRecord, UserProfile, Notification } from './types';
-import { fetchDataFromCloud, deleteRecordFromCloud } from './services/supabaseClient';
+import { fetchDataFromCloud, deleteRecordFromCloud, syncDataToCloud } from './services/supabaseClient';
 
 // Theme Context
 interface ThemeContextType {
@@ -61,9 +62,12 @@ export const useSync = () => {
   return context;
 };
 
-class ErrorBoundary extends React.Component<any, any> {
+class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError: boolean }> {
   public state = { hasError: false };
   public static getDerivedStateFromError(_: Error) { return { hasError: true }; }
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+  }
   public render() {
     if (this.state.hasError) {
       return (
@@ -79,6 +83,11 @@ class ErrorBoundary extends React.Component<any, any> {
 }
 
 const initialProfile: UserProfile = { name: 'Yasir khan', avatarSeed: 'Aneka' };
+
+const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
+  return <Login onLogin={() => navigate('/')} />;
+};
 
 const App: React.FC = () => {
   const [syncWord, setSyncWord] = useState<string | null>(localStorage.getItem('hisaab_sync_word'));
@@ -156,25 +165,21 @@ const App: React.FC = () => {
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('hisaab_profile', JSON.stringify(profile));
-      import('./services/supabaseClient').then(m => m.syncDataToCloud('profiles', [profile]));
+      syncDataToCloud('profiles', [profile]);
     }
   }, [profile, syncWord]);
 
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('fingemini_txs', JSON.stringify(transactions));
-      if (transactions.length > 0) {
-        import('./services/supabaseClient').then(m => m.syncDataToCloud('transactions', transactions));
-      }
+      if (transactions.length > 0) syncDataToCloud('transactions', transactions);
     }
   }, [transactions, syncWord]);
 
   useEffect(() => {
     if (syncWord) {
       localStorage.setItem('fingemini_lend', JSON.stringify(lendRecords));
-      if (lendRecords.length > 0) {
-        import('./services/supabaseClient').then(m => m.syncDataToCloud('lend_records', lendRecords));
-      }
+      if (lendRecords.length > 0) syncDataToCloud('lend_records', lendRecords);
     }
   }, [lendRecords, syncWord]);
 
@@ -266,6 +271,7 @@ const App: React.FC = () => {
                     <Route path="/analytics" element={<Analytics transactions={transactions} />} />
                     <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
                     <Route path="/menu" element={<Menu lendRecords={lendRecords} />} />
+                    <Route path="/login" element={<LoginPage />} />
                   </Routes>
                 </Layout>
               </HashRouter>
