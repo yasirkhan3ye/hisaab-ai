@@ -1,7 +1,6 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
-    
     repositories {
         google()
         mavenCentral()
@@ -9,7 +8,6 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:9.0.1'
         classpath 'com.google.gms:google-services:4.4.4'
-
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
@@ -21,6 +19,38 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+}
+
+// ─── Fix: capacitor-community-speech-recognition declares AGP 8.7.2 in its ──
+// own buildscript block, which under AGP 9.x causes:
+//   "getDefaultProguardFile('proguard-android.txt') is no longer supported"
+// Solution: force every sub-project's buildscript classpath to use the same
+// AGP version as the root project so only one toolchain is active.
+subprojects {
+    buildscript {
+        configurations.all {
+            resolutionStrategy {
+                force 'com.android.tools.build:gradle:9.0.1'
+            }
+        }
+    }
+
+    // Belt-and-suspenders: if a subproject's release buildType still
+    // references the legacy proguard file (e.g. via a transitive plugin),
+    // silently swap it for the optimized variant.
+    afterEvaluate { project ->
+        if (project.plugins.hasPlugin('com.android.library') ||
+            project.plugins.hasPlugin('com.android.application')) {
+            project.android.buildTypes.configureEach { buildType ->
+                def fixed = buildType.proguardFiles.collect { f ->
+                    (f.name == 'proguard-android.txt')
+                        ? project.android.getDefaultProguardFile('proguard-android-optimize.txt')
+                        : f
+                }
+                buildType.proguardFiles.setFrom(fixed)
+            }
+        }
     }
 }
 
