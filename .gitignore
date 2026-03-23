@@ -7,12 +7,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies & Build output
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Editor directories
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +23,29 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+firebase-applet-config.json
+
+# Android build artefacts
+android/app/build/
+android/.gradle/
+android/local.properties
+*.keystore
+!debug.keystore
+
+# Release APKs & build logs (use GitHub Releases instead)
+*.apk
+*.aab
+build_log.txt
+
+# Screenshots & debug images (not source code)
+screenshot*.png
+current_*.png
+final_fix.png
+home_screen*.png
+verify_*.webp
+hisaab_ai_mobile_icon*.png

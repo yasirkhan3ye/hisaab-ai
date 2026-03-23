@@ -2,6 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { useTranslation } from '../services/LanguageContext';
 
 import { SmartProjection } from '../components/SmartProjection';
 
@@ -12,11 +13,12 @@ interface AnalyticsProps {
 const COLORS = ['#137fec', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
+  const { t, language } = useTranslation();
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
 
-  const monthName = new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' });
+  const monthName = new Date(selectedYear, selectedMonth).toLocaleString(language === 'it' ? 'it-IT' : 'en-US', { month: 'long' });
 
   // Temporal Filter
   const filteredData = useMemo(() => {
@@ -53,7 +55,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
       const d = new Date(selectedYear, selectedMonth - i, 1);
       const m = d.getMonth();
       const y = d.getFullYear();
-      const label = d.toLocaleString('default', { month: 'short' });
+      const label = d.toLocaleString(language === 'it' ? 'it-IT' : 'en-US', { month: 'short' });
 
       const inVal = transactions.filter(t => {
         const td = new Date(t.date);
@@ -88,8 +90,8 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
     <div className="space-y-8 pb-20 animate-fadeIn">
       <header className="flex items-center justify-between px-1">
         <div>
-          <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">Hisaab Analysis</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{monthName} {selectedYear} Overview</p>
+          <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{t('hisaabAnalysis')}</h2>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{monthName} {selectedYear} {t('overview')}</p>
         </div>
         <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
           <button onClick={() => changeMonth(-1)} className="p-1.5"><span className="material-symbols-outlined text-sm">navigate_before</span></button>
@@ -101,14 +103,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
       <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden ai-glow border border-white/5">
         <div className="relative z-10 grid grid-cols-2 gap-8">
           <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">Monthly Inflow</span>
+            <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">{t('monthlyInflow')}</span>
             <p className="text-2xl font-black">€{totalIncome.toLocaleString()}</p>
             <div className="h-1 w-full bg-emerald-500/20 rounded-full overflow-hidden">
               <div className="h-full bg-emerald-500" style={{ width: '100%' }}></div>
             </div>
           </div>
           <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest">Monthly Outflow</span>
+            <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest">{t('monthlyOutflow')}</span>
             <p className="text-2xl font-black">€{totalExpense.toLocaleString()}</p>
             <div className="h-1 w-full bg-rose-500/20 rounded-full overflow-hidden">
               <div className="h-full bg-rose-500" style={{ width: `${(totalExpense / (totalIncome || 1)) * 100}%` }}></div>
@@ -131,8 +133,8 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
       {/* Charts Grid */}
       <div className="grid grid-cols-1 gap-6">
         <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">Expense Breakdown by Category</h4>
-          <p className="text-[10px] text-slate-400 mb-4">How your spending is split across categories this month.</p>
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">{t('expenseBreakdown')}</h4>
+          <p className="text-[10px] text-slate-400 mb-4">{t('expenseBreakdownDesc')}</p>
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -148,7 +150,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
             {expenseData.map((entry, i) => (
               <div key={i} className="flex items-center gap-1.5">
                 <div className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{entry.name}</span>
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{t(entry.name.toLowerCase()) || entry.name}</span>
                 <span className="text-[10px] font-black text-slate-400">€{entry.value.toLocaleString()}</span>
               </div>
             ))}
@@ -156,7 +158,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
         </div>
 
         <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">4-Month Momentum</h4>
+          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">{t('momentum')}</h4>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={historicalFlow}>
@@ -175,7 +177,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
         className="w-full py-5 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 font-black text-[10px] uppercase tracking-widest text-slate-500 flex items-center justify-center gap-2"
       >
         <span className="material-symbols-outlined text-sm">print</span>
-        Export {monthName} {selectedYear} Report
+        {t('exportReport')} {monthName} {selectedYear}
       </button>
     </div>
   );

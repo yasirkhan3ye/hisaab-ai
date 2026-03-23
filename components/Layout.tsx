@@ -2,8 +2,10 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme, useUser, useNotifications } from '../App';
+import { useTranslation } from '../services/LanguageContext';
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile } = useUser();
 
@@ -45,11 +47,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         <div className="max-w-md mx-auto flex items-center justify-between h-16 gap-1">
           <NavLink to="/" className={({ isActive }) => `flex-1 flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-primary' : 'text-slate-500 opacity-60'}`}>
             <span className="material-symbols-outlined font-black text-[22px]">home</span>
-            <span className="text-[9px] font-black uppercase tracking-widest">Home</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{t('home')}</span>
           </NavLink>
           <NavLink to="/transactions" className={({ isActive }) => `flex-1 flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-primary' : 'text-slate-500 opacity-60'}`}>
             <span className="material-symbols-outlined font-black text-[22px]">account_balance_wallet</span>
-            <span className="text-[9px] font-black uppercase tracking-widest">Ledger</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{t('ledger')}</span>
           </NavLink>
 
           {/* Central Action Button - Moved down to clear space for the CSV bar */}
@@ -61,11 +63,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
           <NavLink to="/lend" className={({ isActive }) => `flex-1 flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-primary' : 'text-slate-500 opacity-60'}`}>
             <span className="material-symbols-outlined font-black text-[22px]">payments</span>
-            <span className="text-[9px] font-black uppercase tracking-widest">Receiv</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{t('receiv')}</span>
           </NavLink>
           <NavLink to="/menu" className={({ isActive }) => `flex-1 flex flex-col items-center gap-1.5 transition-all ${isActive ? 'text-primary' : 'text-slate-500 opacity-60'}`}>
             <span className="material-symbols-outlined font-black text-[22px]">grid_view</span>
-            <span className="text-[9px] font-black uppercase tracking-widest">Menu</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{t('menu')}</span>
           </NavLink>
         </div>
       </nav>

@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { LendRecord, LendStatus, CurrencyType, Repayment, Transaction } from '../types';
 import { fetchExchangeRates } from '../services/geminiService';
+import { useTranslation } from '../services/LanguageContext';
+import { formatDisplayDate } from '../services/formatters';
 
 interface LendProps {
   lendRecords: LendRecord[];
@@ -13,6 +15,7 @@ interface LendProps {
 }
 
 export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpdate, onDelete, onAddTransaction }) => {
+  const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
   const [fetchingRate, setFetchingRate] = useState(false);
   const [currentPkrRate, setCurrentPkrRate] = useState<number>(300);
@@ -245,12 +248,12 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
       <header className="flex flex-col gap-4">
         <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden ai-glow border border-white/5">
           <div className="relative z-10">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2">Portfolio Summary</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2">{t('portfolioSummary')}</p>
             <div className="mb-6">
               <h2 className="text-4xl font-black tracking-tighter">
                 €{totalReceivableEUR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </h2>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Total Receivable Balance</p>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{t('receivableBalance')}</p>
             </div>
 
             <div className="flex gap-2">
@@ -258,7 +261,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                 onClick={() => setShowAdd(!showAdd)}
                 className="flex-1 bg-primary text-white py-4 rounded-2xl font-black hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 uppercase text-[11px] tracking-widest"
               >
-                {showAdd ? 'Close Form' : 'Record New Loan'}
+                {showAdd ? t('closeForm') : t('recordNewLoan')}
               </button>
               <div className="flex bg-white/5 p-1 rounded-2xl">
                 <button onClick={downloadTemplate} className="size-11 flex items-center justify-center text-slate-400 hover:text-white" title="Download Template"><span className="material-symbols-outlined text-lg">download</span></button>
@@ -279,10 +282,10 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
       {showTemplateHelp && (
         <div className="bg-slate-100 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800 animate-fadeIn">
           <div className="flex justify-between items-center mb-4">
-            <h4 className="text-xs font-black uppercase tracking-widest text-primary">Template Helper</h4>
+            <h4 className="text-xs font-black uppercase tracking-widest text-primary">{t('templateHelper')}</h4>
             <button onClick={() => setShowTemplateHelp(false)} className="text-slate-400"><span className="material-symbols-outlined text-sm">close</span></button>
           </div>
-          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">If the automatic download didn't start, you can copy the template content below and save it as a <span className="font-bold">.csv</span> file.</p>
+          <p className="text-[10px] text-slate-500 mb-4 leading-relaxed">{t('templateHelperDesc')}</p>
           <div className="bg-white dark:bg-slate-900 p-4 rounded-xl mb-4 overflow-x-auto">
             <pre className="text-[9px] font-mono text-slate-400 whitespace-pre">{csvTemplateContent}</pre>
           </div>
@@ -291,26 +294,26 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
             className="w-full py-3 bg-white dark:bg-slate-800 rounded-xl text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2"
           >
             <span className="material-symbols-outlined text-sm">content_copy</span>
-            Copy Template Text
+            {t('copyTemplateText')}
           </button>
         </div>
       )}
 
       {showAdd && (
         <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-2xl animate-fadeIn space-y-6">
-          <h4 className="text-xl font-black">New Loan Entry</h4>
+          <h4 className="text-xl font-black">{t('newLoanEntry')}</h4>
           <div className="grid grid-cols-1 gap-5">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Recipient Name</label>
-              <input required type="text" value={formData.personName} onChange={e => setFormData({ ...formData, personName: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none text-slate-900 dark:text-white font-bold" placeholder="Name" />
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('recipientName')}</label>
+              <input required type="text" value={formData.personName} onChange={e => setFormData({ ...formData, personName: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none text-slate-900 dark:text-white font-bold" placeholder={t('categoryPlaceholder')} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Amount</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('amount')}</label>
                 <input required type="number" step="0.01" value={formData.amount} onChange={e => setFormData({ ...formData, amount: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none font-black text-slate-900 dark:text-white" placeholder="0.00" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Currency</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('currency')}</label>
                 <select value={formData.currency} onChange={e => setFormData({ ...formData, currency: e.target.value as CurrencyType })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none font-black text-xs text-slate-900 dark:text-white">
                   <option value="EUR">EUR</option>
                   <option value="PKR">PKR</option>
@@ -319,16 +322,16 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Date Lent</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('dateLent')}</label>
                 <input required type="date" value={formData.dateLent} onChange={e => setFormData({ ...formData, dateLent: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none text-xs text-slate-900 dark:text-white font-bold" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Due Date</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('dueDate')}</label>
                 <input required type="date" value={formData.dueDate} onChange={e => setFormData({ ...formData, dueDate: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl px-5 py-4 outline-none text-xs text-slate-900 dark:text-white font-bold" />
               </div>
             </div>
           </div>
-          <button type="submit" className="w-full bg-primary text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase text-[11px] tracking-widest">Confirm Entry</button>
+          <button type="submit" className="w-full bg-primary text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase text-[11px] tracking-widest">{t('confirmEntry')}</button>
         </form>
       )}
 
@@ -336,7 +339,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
         {lendRecords.length === 0 ? (
           <div className="py-20 text-center bg-slate-50 dark:bg-slate-900/20 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
             <span className="material-symbols-outlined text-4xl text-slate-300">payments</span>
-            <p className="text-[10px] font-black uppercase text-slate-400 mt-2">No Active Records</p>
+            <p className="text-[10px] font-black uppercase text-slate-400 mt-2">{t('noActiveRecords')}</p>
           </div>
         ) : (
           lendRecords.map(record => {
@@ -358,12 +361,12 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                       </div>
                       <div>
                         <h4 className="font-black text-slate-900 dark:text-white leading-tight">{record.personName}</h4>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Due {record.dueDate}</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Due {formatDisplayDate(record.dueDate)}</p>
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2">
                       <div className={`px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${record.status === 'returned' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'}`}>
-                        {record.status}
+                        {t(record.status)}
                       </div>
                       <span className={`material-symbols-outlined text-slate-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>expand_more</span>
                     </div>
@@ -371,10 +374,10 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
 
                   <div className="space-y-3">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Repayment Progress</span>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('repaymentProgress')}</span>
                       <div className="flex items-center gap-2">
                         <span className="text-xl font-black text-slate-900 dark:text-white">€{remaining.toLocaleString()}</span>
-                        <span className="text-[10px] font-black text-slate-400 uppercase">left</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase">{t('left')}</span>
                       </div>
                     </div>
                     <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -384,14 +387,14 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
 
                   {isExpanded && (
                     <div className="pt-4 space-y-4 animate-fadeIn border-t dark:border-slate-800">
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">Payment History</p>
+                      <p className="text-[10px] font-black text-primary uppercase tracking-widest">{t('paymentHistory')}</p>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50">
                           <div>
-                            <p className="text-[10px] font-black uppercase text-slate-400">Initial Loan</p>
+                            <p className="text-[10px] font-black uppercase text-slate-400">{t('initialLoan')}</p>
                             <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{record.amount.toLocaleString()}</p>
                           </div>
-                          <p className="text-[8px] font-black text-slate-400 uppercase">{record.dateLent}</p>
+                          <p className="text-[8px] font-black text-slate-400 uppercase">{formatDisplayDate(record.dateLent)}</p>
                         </div>
                         {record.repayments.map((rep, idx) => (
                           <div key={rep.id} className="flex items-center justify-between p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
@@ -399,7 +402,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                               <p className="text-[10px] font-black uppercase text-emerald-500/60">Entry #{idx + 1}</p>
                               <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{rep.amount.toLocaleString()}</p>
                             </div>
-                            <p className="text-[8px] font-black text-slate-400 uppercase">{rep.date}</p>
+                            <p className="text-[8px] font-black text-slate-400 uppercase">{formatDisplayDate(rep.date)}</p>
                           </div>
                         ))}
                       </div>
@@ -409,7 +412,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                   <div className="pt-4 flex items-center justify-between gap-4 border-t border-slate-50 dark:border-slate-800/50">
                     <button onClick={() => onDelete(record.id)} className="size-11 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 flex items-center justify-center transition-all"><span className="material-symbols-outlined text-xl">delete</span></button>
                     {record.status !== 'returned' && (
-                      <button onClick={() => setRepaymentModal(record.id)} className="flex-1 h-11 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">Return Funds</button>
+                      <button onClick={() => setRepaymentModal(record.id)} className="flex-1 h-11 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">{t('returnFunds')}</button>
                     )}
                   </div>
                 </div>
@@ -422,15 +425,15 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
       {repaymentModal && (
         <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[60] flex items-center justify-center p-6">
           <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl animate-fadeIn border border-slate-100 dark:border-slate-800">
-            <h4 className="text-xl font-black mb-6">Record Repayment</h4>
+            <h4 className="text-xl font-black mb-6">{t('recordRepayment')}</h4>
             <form onSubmit={handleAddRepayment} className="space-y-5">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Amount</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('amount')}</label>
                   <input required type="number" step="0.01" value={repayData.amount} onChange={e => setRepayData({ ...repayData, amount: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-black outline-none text-slate-900 dark:text-white" placeholder="0.00" />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Currency</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{t('currency')}</label>
                   <select value={repayData.currency} onChange={e => setRepayData({ ...repayData, currency: e.target.value as CurrencyType })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-black outline-none text-xs text-slate-900 dark:text-white">
                     <option value="EUR">EUR</option>
                     <option value="PKR">PKR</option>
@@ -439,8 +442,8 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
               </div>
               <input required type="date" value={repayData.date} onChange={e => setRepayData({ ...repayData, date: e.target.value })} className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-bold outline-none text-xs text-slate-900 dark:text-white" />
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setRepaymentModal(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest">Cancel</button>
-                <button type="submit" className="flex-1 bg-emerald-500 text-white font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-500/20">Confirm</button>
+                <button type="button" onClick={() => setRepaymentModal(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-400 font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest">{t('cancel')}</button>
+                <button type="submit" className="flex-1 bg-emerald-500 text-white font-black py-4 rounded-2xl uppercase text-[10px] tracking-widest shadow-xl shadow-emerald-500/20">{t('confirm')}</button>
               </div>
             </form>
           </div>

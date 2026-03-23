@@ -10,6 +10,8 @@ import { Lend } from './pages/Lend';
 import { Menu } from './pages/Menu';
 import { Transaction, LendRecord, UserProfile, Notification } from './types';
 import { fetchDataFromCloud, deleteRecordFromCloud, syncDataToCloud } from './services/supabaseClient';
+import { LanguageProvider, useTranslation } from './services/LanguageContext';
+import { UpdateNotifier } from './components/UpdateNotifier';
 
 // Theme Context
 interface ThemeContextType {
@@ -78,7 +80,7 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError:
         </div>
       );
     }
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
 
@@ -89,7 +91,7 @@ const LoginPage: React.FC = () => {
   return <Login onLogin={() => navigate('/')} />;
 };
 
-const App: React.FC = () => {
+const HisaabApp: React.FC = () => {
   const [syncWord, setSyncWord] = useState<string | null>(localStorage.getItem('hisaab_sync_word'));
   const [inputWord, setInputWord] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -217,6 +219,8 @@ const App: React.FC = () => {
   const markAsRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
   const markAllAsRead = () => setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
 
+  const { t } = useTranslation();
+
   if (!syncWord) {
     return (
       <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center p-8 text-white">
@@ -230,33 +234,48 @@ const App: React.FC = () => {
             <span className="material-icons text-primary text-4xl">sync</span>
           </div>
           <div className="space-y-2">
-            <h1 className="text-3xl font-black tracking-tighter">Setup Sync</h1>
+            <h1 className="text-3xl font-black tracking-tighter">{t('setupSync')}</h1>
             <p className="text-slate-400 text-xs font-medium uppercase tracking-widest leading-relaxed px-4">
-              Enter your secret word to synchronize your data across all your devices.
+              {t('secretWordDesc')}
             </p>
           </div>
 
           <form onSubmit={handleSetSyncWord} className="space-y-4">
             <input
               type="text"
-              placeholder="Enter Secret Word"
-              className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-5 px-6 text-center text-lg font-black tracking-widest outline-none focus:ring-2 focus:ring-primary/40 text-white placeholder:text-slate-700"
+              placeholder={t('secretWordPlaceholder')}
+              className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl py-4 px-6 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20"
               value={inputWord}
               onChange={(e) => setInputWord(e.target.value)}
             />
             <button type="submit" className="w-full bg-primary py-5 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl shadow-primary/25 active:scale-95 transition-all">
-              Start Synchronizing
+              {t('startSynchronizing')}
             </button>
           </form>
 
           <div className="pt-4">
-            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.3em]">No Registration Required</p>
+            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.3em]">{t('noRegistration')}</p>
           </div>
         </div>
       </div>
     );
   }
 
+  return (
+    <AppContent transactions={transactions} syncWord={syncWord} isSyncing={isSyncing} pullDataFromCloud={pullDataFromCloud} lastSyncTime={lastSyncTime} theme={theme} toggleTheme={toggleTheme} profile={profile} updateProfile={updateProfile} notifications={notifications} unreadCount={unreadCount} markAsRead={markAsRead} markAllAsRead={markAllAsRead} lendRecords={lendRecords} addTransaction={addTransaction} deleteTransaction={deleteTransaction} addLendRecord={addLendRecord} addLendRecords={addLendRecords} updateLendRecord={updateLendRecord} deleteLendRecord={deleteLendRecord} />
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <LanguageProvider>
+      <UpdateNotifier />
+      <HisaabApp />
+    </LanguageProvider>
+  );
+};
+
+const AppContent: React.FC<any> = ({ transactions, syncWord, isSyncing, pullDataFromCloud, lastSyncTime, theme, toggleTheme, profile, updateProfile, notifications, unreadCount, markAsRead, markAllAsRead, lendRecords, addTransaction, deleteTransaction, addLendRecord, addLendRecords, updateLendRecord, deleteLendRecord }) => {
   return (
     <SyncContext.Provider value={{ isSyncing, triggerManualSync: pullDataFromCloud, lastSyncTime }}>
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
@@ -270,8 +289,7 @@ const App: React.FC = () => {
                     <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} />} />
                     <Route path="/analytics" element={<Analytics transactions={transactions} />} />
                     <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
-                    <Route path="/menu" element={<Menu lendRecords={lendRecords} />} />
-                    <Route path="/login" element={<LoginPage />} />
+                    <Route path="/menu" element={<Menu />} />
                   </Routes>
                 </Layout>
               </HashRouter>

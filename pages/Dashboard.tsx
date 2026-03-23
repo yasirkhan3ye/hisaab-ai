@@ -3,16 +3,44 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Transaction } from '../types';
 import { fetchExchangeRates } from '../services/geminiService';
+import { useTranslation } from '../services/LanguageContext';
+import { formatDisplayDate } from '../services/formatters';
 
 interface DashboardProps {
   transactions: Transaction[];
 }
 
+// Icon map matching presets from Transactions page
+const CATEGORY_ICONS: Record<string, string> = {
+  rent: 'home',
+  oil: 'local_gas_station',
+  phone: 'smartphone',
+  car: 'directions_car',
+  insurance: 'shield',
+  internet: 'wifi',
+  groceries: 'shopping_cart',
+  transport: 'directions_transit',
+  deliveroo: 'delivery_dining',
+  glovo: 'moped',
+  salary: 'payments',
+  freelance: 'laptop',
+  bonus: 'stars',
+  investment: 'trending_up',
+};
+
+const getCategoryIcon = (category: string, type: string): string => {
+  const icon = CATEGORY_ICONS[category.toLowerCase()];
+  if (icon) return icon;
+  return type === 'income' ? 'account_balance' : 'shopping_bag';
+};
+
 export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
   const navigate = useNavigate();
+  const { t, language } = useTranslation();
   const [pkrRate, setPkrRate] = useState<number>(302.45);
   const [isSyncing, setIsSyncing] = useState(false);
   const [viewType, setViewType] = useState<'expense' | 'income'>('expense');
+  const [sortBy, setSortBy] = useState<'date' | 'category'>('date');
 
   // Monthly Filter State
   const now = new Date();
@@ -79,7 +107,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
     setSelectedYear(newYear);
   };
 
-  const monthName = new Date(selectedYear, selectedMonth).toLocaleString('default', { month: 'long' });
+  const monthName = new Date(selectedYear, selectedMonth).toLocaleString(language === 'it' ? 'it-IT' : 'en-US', { month: 'long' });
 
   return (
     <div className="space-y-7 animate-fadeIn pb-10">
@@ -89,8 +117,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
           <span className="material-symbols-outlined">chevron_left</span>
         </button>
         <div className="text-center px-2">
-          <h2 className="text-xl font-black tracking-tight truncate">{monthName} {selectedYear}</h2>
-          <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] truncate">Financial Summary</p>
+          <h2 className="text-xl font-black tracking-tight truncate capitali">{monthName} {selectedYear}</h2>
+          <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] truncate">{t('monthlySummary')}</p>
         </div>
         <button onClick={() => changeMonth(1)} className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-primary transition-colors">
           <span className="material-symbols-outlined">chevron_right</span>
@@ -102,13 +130,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
         <div className="relative z-10">
           <div className="flex justify-between items-start mb-6 gap-4">
             <div className="min-w-0">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary truncate block">Monthly Net Balance</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary truncate block">{t('netBalance')}</span>
               <h2 className="text-4xl font-black tracking-tighter truncate">
                 €{monthlyBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
               </h2>
             </div>
             <div className="text-right flex-shrink-0">
-              <span className="text-[10px] font-black uppercase text-slate-400">Savings Rate</span>
+              <span className="text-[10px] font-black uppercase text-slate-400">{t('savingsRate')}</span>
               <p className={`text-lg font-black ${savingsRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {savingsRate.toFixed(1)}%
               </p>
@@ -117,12 +145,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 group hover:bg-white/10 transition-colors min-w-0">
-              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest truncate block">Total Inflow</span>
+              <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest truncate block">{t('totalInflow')}</span>
               <p className="text-lg font-black text-white truncate">+€{monthlyIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               <p className="text-[8px] text-slate-400 font-black mt-1 uppercase truncate">≈ ₨{(monthlyIncome * pkrRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
             <div className="bg-white/5 rounded-2xl p-4 border border-white/10 group hover:bg-white/10 transition-colors min-w-0">
-              <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest truncate block">Total Outflow</span>
+              <span className="text-[9px] font-bold text-rose-400 uppercase tracking-widest truncate block">{t('totalOutflow')}</span>
               <p className="text-lg font-black text-white">-€{monthlyExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               <p className="text-[8px] text-slate-400 font-black mt-1 uppercase truncate">≈ ₨{(monthlyExpense * pkrRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
             </div>
@@ -140,8 +168,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
           className="flex items-center justify-between p-4 rounded-[2rem] bg-emerald-500/10 border border-emerald-500/20 active:scale-95 transition-all group min-w-0"
         >
           <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
-            <span className="text-[10px] font-black uppercase text-emerald-500 mb-1 truncate w-full">New Entry</span>
-            <span className="text-sm font-black group-hover:text-emerald-500 transition-colors truncate w-full text-left">Income</span>
+            <span className="text-[10px] font-black uppercase text-emerald-500 mb-1 truncate w-full">{t('newEntry')}</span>
+            <span className="text-sm font-black group-hover:text-emerald-500 transition-colors truncate w-full text-left">{t('income')}</span>
           </div>
           <div className="size-10 rounded-2xl bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 flex-shrink-0">
             <span className="material-symbols-outlined text-xl font-black">add_circle</span>
@@ -152,8 +180,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
           className="flex items-center justify-between p-4 rounded-[2rem] bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-all group min-w-0"
         >
           <div className="flex flex-col items-start min-w-0 flex-1 mr-2">
-            <span className="text-[10px] font-black uppercase text-rose-500 mb-1 truncate w-full">New Entry</span>
-            <span className="text-sm font-black group-hover:text-rose-500 transition-colors truncate w-full text-left">Expense</span>
+            <span className="text-[10px] font-black uppercase text-rose-500 mb-1 truncate w-full">{t('newEntry')}</span>
+            <span className="text-sm font-black group-hover:text-rose-500 transition-colors truncate w-full text-left">{t('expense')}</span>
           </div>
           <div className="size-10 rounded-2xl bg-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/20 flex-shrink-0">
             <span className="material-symbols-outlined text-xl font-black">remove_circle</span>
@@ -164,16 +192,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
       {/* Category Intelligence Toggle */}
       <section className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-7 border border-slate-100 dark:border-slate-800 shadow-xl">
         <div className="flex items-center justify-between mb-8 gap-2">
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 truncate">Categorical Analysis</h3>
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 truncate">{t('categoricalAnalysis')}</h3>
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl flex-shrink-0">
             <button
               onClick={() => setViewType('income')}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'income' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
-            >Inc</button>
+            >{t('inc')}</button>
             <button
               onClick={() => setViewType('expense')}
               className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${viewType === 'expense' ? 'bg-rose-500 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}
-            >Exp</button>
+            >{t('exp')}</button>
           </div>
         </div>
 
@@ -214,21 +242,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
       {/* Activity Feed with Split View */}
       <section>
         <div className="flex items-center justify-between mb-4 px-1 gap-2">
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 truncate">Activity</h3>
-          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter flex-shrink-0">{monthlyTransactions.length} Logs</span>
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 truncate">{t('activity')}</h3>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <button
+                onClick={() => setSortBy('date')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                  sortBy === 'date' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[14px]">schedule</span>
+                {t('date')}
+              </button>
+              <button
+                onClick={() => setSortBy('category')}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                  sortBy === 'category' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[14px]">category</span>
+                {t('category')}
+              </button>
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">{monthlyTransactions.length} {t('logs')}</span>
+          </div>
         </div>
         <div className="space-y-3">
-          {monthlyTransactions.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
+          {monthlyTransactions.slice().sort((a, b) => {
+            if (sortBy === 'category') {
+              const catCompare = a.category.localeCompare(b.category);
+              if (catCompare !== 0) return catCompare;
+              return new Date(b.date).getTime() - new Date(a.date).getTime();
+            }
+            return new Date(b.date).getTime() - new Date(a.date).getTime();
+          }).map(t => (
             <div key={t.id} className="flex items-center justify-between p-5 rounded-[1.5rem] bg-white dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 hover:border-primary/20 transition-all cursor-default group gap-4">
               <div className="flex items-center gap-4 min-w-0 flex-1">
                 <div className={`size-11 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                   <span className="material-symbols-outlined text-xl font-black">
-                    {t.type === 'income' ? 'account_balance' : 'shopping_bag'}
+                    {getCategoryIcon(t.category, t.type)}
                   </span>
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">{t.category}</p>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5 truncate">{t.description || 'General Log'} • {t.date}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5 truncate">{t.description || 'General Log'} • {formatDisplayDate(t.date)}</p>
                 </div>
               </div>
               <p className={`text-base font-black flex-shrink-0 ${t.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
@@ -240,8 +297,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
             <div className="py-16 text-center space-y-4 bg-slate-50 dark:bg-slate-900/20 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
               <span className="material-symbols-outlined text-5xl text-slate-300 block">history_edu</span>
               <div className="px-4">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">No activity detected</p>
-                <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">Start recording your {monthName} finances</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">{t('noActivity')}</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase mt-1">{t('startRecording')}</p>
               </div>
             </div>
           )}

@@ -5,6 +5,8 @@ import { Transaction, TransactionType } from '../types';
 import { extractTransactionsFromText, analyzeReceipt } from '../services/geminiService';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { Capacitor } from '@capacitor/core';
+import { useTranslation } from '../services/LanguageContext';
+import { formatDisplayDate } from '../services/formatters';
 
 interface TransactionsProps {
   transactions: Transaction[];
@@ -13,6 +15,7 @@ interface TransactionsProps {
 }
 
 export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd, onDelete }) => {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const [showAdd, setShowAdd] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -150,7 +153,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       console.error('Speech recognition error:', err);
       setIsListening(false);
       if (err !== 'Stopped without results') {
-          alert('Could not start speech recognition. Please check your mic settings.');
+          alert(t('speechError'));
       }
     }
   };
@@ -161,7 +164,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     try {
         const parsed = await extractTransactionsFromText(text);
         if (parsed && parsed.length > 0) {
-            const item = parsed[0];
+            const item = parsed[0] as any;
             const cat = (item.category ?? '').toString();
             const desc = (item.description ?? '').toString();
             setFormData({
@@ -175,7 +178,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
             });
             setShowAdd(true);
         } else {
-            alert("Gemini couldn't extract transaction details. Try being more specific: 'Spent 50 Euro on Groceries'.");
+            alert(t('extractionError'));
         }
     } catch (err) {
         console.error('AI Parsing error:', err);
@@ -332,20 +335,20 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   };
 
   const PRESETS = [
-    { label: 'Rent', icon: 'home', type: 'expense' as const },
-    { label: 'Oil', icon: 'local_gas_station', type: 'expense' as const },
-    { label: 'Phone', icon: 'smartphone', type: 'expense' as const },
-    { label: 'Car', icon: 'directions_car', type: 'expense' as const },
-    { label: 'Insurance', icon: 'shield', type: 'expense' as const },
-    { label: 'Internet', icon: 'wifi', type: 'expense' as const },
-    { label: 'Groceries', icon: 'shopping_cart', type: 'expense' as const },
-    { label: 'Transport', icon: 'directions_transit', type: 'expense' as const },
-    { label: 'Deliveroo', icon: 'delivery_dining', type: 'income' as const },
-    { label: 'Glovo', icon: 'moped', type: 'income' as const },
-    { label: 'Salary', icon: 'payments', type: 'income' as const },
-    { label: 'Freelance', icon: 'laptop', type: 'income' as const },
-    { label: 'Bonus', icon: 'stars', type: 'income' as const },
-    { label: 'Investment', icon: 'trending_up', type: 'income' as const },
+    { label: 'rent', icon: 'home', type: 'expense' as const },
+    { label: 'oil', icon: 'local_gas_station', type: 'expense' as const },
+    { label: 'phone', icon: 'smartphone', type: 'expense' as const },
+    { label: 'car', icon: 'directions_car', type: 'expense' as const },
+    { label: 'insurance', icon: 'shield', type: 'expense' as const },
+    { label: 'internet', icon: 'wifi', type: 'expense' as const },
+    { label: 'groceries', icon: 'shopping_cart', type: 'expense' as const },
+    { label: 'transport', icon: 'directions_transit', type: 'expense' as const },
+    { label: 'deliveroo', icon: 'delivery_dining', type: 'income' as const },
+    { label: 'glovo', icon: 'moped', type: 'income' as const },
+    { label: 'salary', icon: 'payments', type: 'income' as const },
+    { label: 'freelance', icon: 'laptop', type: 'income' as const },
+    { label: 'bonus', icon: 'stars', type: 'income' as const },
+    { label: 'investment', icon: 'trending_up', type: 'income' as const },
   ];
 
   const handlePreset = (preset: typeof PRESETS[0]) => {
@@ -421,19 +424,21 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       {/* Page Header */}
       <div className="flex items-center justify-between px-1">
         <div>
-          <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">Transactions</h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Transaction Feed</p>
+          <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{t('transactions')}</h2>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('transactionFeed')}</p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => startVoiceCapture()}
             className={`size-12 rounded-2xl flex items-center justify-center transition-all ${isListening ? 'bg-primary text-white animate-pulse shadow-lg shadow-primary/50' : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'}`}
+            title={t('startVoiceCapture')}
           >
             <span className="material-symbols-outlined text-2xl font-black">{isListening ? 'mic' : 'mic_none'}</span>
           </button>
           <button
             onClick={() => startScanning()}
             className="size-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center transition-all hover:bg-primary hover:text-white"
+            title={t('captureReceipt')}
           >
             <span className="material-symbols-outlined text-2xl font-black">photo_camera</span>
           </button>
@@ -448,7 +453,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
 
       {/* Quick Add Presets */}
       <div className="space-y-3">
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Quick Add</p>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">{t('quickAdd')}</p>
         <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
           {PRESETS.filter(p => p.type === 'expense').map(preset => (
             <button
@@ -457,7 +462,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               className="flex flex-col items-center gap-1.5 min-w-[64px] bg-rose-50 dark:bg-rose-500/10 text-rose-500 rounded-2xl p-3 active:scale-95 transition-all hover:bg-rose-500 hover:text-white shrink-0"
             >
               <span className="material-symbols-outlined text-xl">{preset.icon}</span>
-              <span className="text-[9px] font-black uppercase tracking-wide text-center leading-tight">{preset.label}</span>
+              <span className="text-[9px] font-black uppercase tracking-wide text-center leading-tight">{t(preset.label)}</span>
             </button>
           ))}
         </div>
@@ -469,7 +474,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               className="flex flex-col items-center gap-1.5 min-w-[64px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 rounded-2xl p-3 active:scale-95 transition-all hover:bg-emerald-500 hover:text-white shrink-0"
             >
               <span className="material-symbols-outlined text-xl">{preset.icon}</span>
-              <span className="text-[9px] font-black uppercase tracking-wide text-center leading-tight">{preset.label}</span>
+              <span className="text-[9px] font-black uppercase tracking-wide text-center leading-tight">{t(preset.label)}</span>
             </button>
           ))}
         </div>
@@ -521,25 +526,25 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           {isUploading && (
             <div className="absolute inset-0 z-10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm flex flex-col items-center justify-center">
               <div className="size-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin mb-4"></div>
-              <p className="font-black text-[10px] uppercase tracking-widest text-primary">Gemini AI is analyzing...</p>
+              <p className="font-black text-[10px] uppercase tracking-widest text-primary">{t('analyzingReceipt')}</p>
             </div>
           )}
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-black text-slate-900 dark:text-white">Transaction Details</h3>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">{t('transactionDetails')}</h3>
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
                 onClick={() => setFormData({ ...formData, type: 'income' })}
                 className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${formData.type === 'income' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400'}`}
-              >Income</button>
+              >{t('income')}</button>
               <button
                 onClick={() => setFormData({ ...formData, type: 'expense' })}
                 className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase transition-all ${formData.type === 'expense' ? 'bg-rose-500 text-white shadow-md' : 'text-slate-400'}`}
-              >Expense</button>
+              >{t('expense')}</button>
             </div>
           </div>
           <div className="space-y-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Value (€)</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('value')} (€)</label>
               <input
                 type="number"
                 value={formData.amount}
@@ -550,17 +555,17 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Category</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('category')}</label>
                 <input
                   type="text"
                   value={formData.category}
                   onChange={e => setFormData({ ...formData, category: e.target.value })}
                   className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
-                  placeholder="Food..."
+                  placeholder={t('categoryPlaceholder')}
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('date')}</label>
                 <input
                   type="date"
                   value={formData.date}
@@ -570,13 +575,13 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               </div>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
+              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('description')}</label>
               <input
                 type="text"
                 value={formData.description}
                 onChange={e => setFormData({ ...formData, description: e.target.value })}
                 className="w-full bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-bold outline-none text-slate-900 dark:text-white"
-                placeholder="Notes..."
+                placeholder={t('descriptionPlaceholder')}
               />
             </div>
 
@@ -587,8 +592,8 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                   <span className="material-symbols-outlined text-xl">{formData.excludeFromAnalytics ? 'visibility_off' : 'visibility'}</span>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">Exclude from Analytics</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase">Don't impact daily projections</p>
+                  <p className="text-[10px] font-black uppercase text-slate-900 dark:text-white">{t('excludeFromAnalytics')}</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase">{t('excludeDesc')}</p>
                 </div>
               </div>
               <div className={`w-10 h-6 rounded-full relative transition-colors ${formData.excludeFromAnalytics ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
@@ -600,7 +605,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
               onClick={() => handleSubmit()}
               className={`w-full py-5 rounded-[1.5rem] font-black text-white shadow-xl transition-all active:scale-95 ${formData.type === 'income' ? 'bg-emerald-500 shadow-emerald-500/20' : 'bg-rose-500 shadow-rose-500/20'}`}
             >
-              Confirm {formData.type}
+              {t('confirm')} {t(formData.type)}
             </button>
           </div>
         </div>
@@ -608,27 +613,27 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
 
       {/* Transaction List */}
       <div className="space-y-4">
-        {transactions.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t => (
-          <div key={t.id} className="group relative bg-white dark:bg-slate-900/50 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 p-5 flex items-center justify-between transition-all hover:border-primary/20">
+        {transactions.slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(t_item => (
+          <div key={t_item.id} className="group relative bg-white dark:bg-slate-900/50 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 p-5 flex items-center justify-between transition-all hover:border-primary/20">
             <div className="flex items-center gap-4 min-w-0 flex-1">
-              <div className={`size-12 rounded-2xl flex items-center justify-center font-black flex-shrink-0 ${t.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                {t.category.charAt(0)}
+              <div className={`size-12 rounded-2xl flex items-center justify-center font-black flex-shrink-0 ${t_item.type === 'income' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                {t_item.category.charAt(0)}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">{t.category}</h4>
-                  {t.excludeFromAnalytics && (
-                    <span className="material-symbols-outlined text-[14px] text-slate-400" title="Excluded from analytics">visibility_off</span>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white truncate">{t_item.category}</h4>
+                  {t_item.excludeFromAnalytics && (
+                    <span className="material-symbols-outlined text-[14px] text-slate-400" title={t('excludedFromAnalyticsTooltip')}>visibility_off</span>
                   )}
                 </div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">{t.date} • {t.description || 'Auto-Logged'}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight truncate">{formatDisplayDate(t_item.date)} • {t_item.description || t('autoLogged')}</p>
               </div>
             </div>
             <div className="flex flex-col items-end flex-shrink-0 ml-4">
-              <span className={`text-lg font-black tracking-tight ${t.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {t.type === 'income' ? '+' : '-'}€{t.amount.toLocaleString()}
+              <span className={`text-lg font-black tracking-tight ${t_item.type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {t_item.type === 'income' ? '+' : '-'}€{t_item.amount.toLocaleString()}
               </span>
-              <button onClick={() => onDelete(t.id)} className="text-[10px] font-black text-slate-300 hover:text-rose-500 transition-colors uppercase mt-1">Remove</button>
+              <button onClick={() => onDelete(t_item.id)} className="text-[10px] font-black text-slate-300 hover:text-rose-500 transition-colors uppercase mt-1">{t('remove')}</button>
             </div>
           </div>
         ))}
@@ -638,7 +643,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
             <div className="size-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="material-symbols-outlined text-4xl text-slate-300">receipt_long</span>
             </div>
-            <h4 className="font-black text-slate-400 uppercase tracking-widest text-sm">Empty Ledger</h4>
+            <h4 className="font-black text-slate-400 uppercase tracking-widest text-sm">{t('emptyLedger')}</h4>
           </div>
         )}
       </div>
@@ -650,14 +655,14 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           className="flex items-center gap-2 bg-primary text-white px-4 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all text-center justify-center whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-sm">download</span>
-          <span className="hidden sm:inline">Template</span>
+          <span className="hidden sm:inline">{t('template')}</span>
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-6 py-3 rounded-full shadow-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all text-center justify-center whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-sm">upload_file</span>
-          <span>Import CSV</span>
+          <span>{t('importCsv')}</span>
         </button>
         <input type="file" ref={fileInputRef} className="hidden" accept=".csv" onChange={handleFileUpload} />
       </div>

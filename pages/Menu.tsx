@@ -2,12 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser, useTheme, useNotifications, useSync } from '../App';
 import { LendRecord } from '../types';
+import { useTranslation } from '../services/LanguageContext';
 
 interface MenuProps {
   lendRecords?: LendRecord[];
 }
 
 export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
+  const { t, language, setLanguage } = useTranslation();
   const navigate = useNavigate();
   const { profile, updateProfile } = useUser();
   const { theme, toggleTheme } = useTheme();
@@ -46,40 +48,47 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
 
   const menuGroups = [
     {
-      title: "Cloud & Syncing",
+      title: t('cloudSyncing'),
       items: [
         {
           icon: isSyncing ? 'sync' : 'sync',
           iconClass: isSyncing ? 'animate-spin' : '',
-          label: 'Secret Sync Word',
-          sub: isSyncing ? 'Synchronizing now...' : `Active: ${syncWord || 'MCMXCAD3YE'}`,
-          sub2: `Last sync: ${lastSyncTime}`,
+          label: t('secretSyncWord'),
+          sub: isSyncing ? t('loading') : `${t('active')}: ${syncWord || 'MCMXCAD3YE'}`,
+          sub2: `${t('lastSync')}: ${lastSyncTime}`,
           action: () => triggerManualSync(),
           color: isSyncing ? 'text-primary' : 'text-emerald-500'
         },
         {
           icon: 'cloud_off',
-          label: 'Disconnect Cloud',
-          sub: 'Stop syncing on this device',
+          label: t('disconnectCloud'),
+          sub: t('disconnectCloudDesc'),
           action: handleResetSync,
           color: 'text-rose-500'
         },
       ]
     },
     {
-      title: "Settings & System",
+      title: t('settingsSystem'),
       items: [
         {
+          icon: 'language',
+          label: t('languageCurrent'),
+          sub: language === 'en' ? 'English' : 'Italiano',
+          action: () => setLanguage(language === 'en' ? 'it' : 'en'),
+          color: 'text-indigo-500'
+        },
+        {
           icon: theme === 'dark' ? 'light_mode' : 'dark_mode',
-          label: 'Display Mode',
-          sub: theme === 'dark' ? 'Current: Dark' : 'Current: Light',
+          label: t('displayMode'),
+          sub: theme === 'dark' ? `${t('current')}: ${t('dark')}` : `${t('current')}: ${t('light')}`,
           action: toggleTheme,
           color: 'text-amber-500'
         },
         {
           icon: 'notifications',
-          label: 'App Notifications',
-          sub: unreadCount > 0 ? `${unreadCount} unread` : 'No new alerts',
+          label: t('notificationsLabel'),
+          sub: unreadCount > 0 ? `${unreadCount} ${t('unread')}` : t('noNewAlerts'),
           badge: unreadCount > 0,
           action: () => setShowNotifications(!showNotifications),
           color: 'text-primary'
@@ -91,8 +100,8 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   return (
     <div className="space-y-8 animate-fadeIn pb-20">
       <header className="px-1">
-        <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">System Console</h2>
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Configuration Center</p>
+        <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{t('systemConsole')}</h2>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t('configurationCenter')}</p>
       </header>
 
       {/* Profile Card */}
@@ -110,7 +119,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         </div>
         <div className="flex-1">
           <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">{profile.name}</h3>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Private Account</p>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{t('privateAccount')}</p>
         </div>
         <button
           onClick={() => setShowEdit(true)}
@@ -125,7 +134,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-md flex items-center justify-center p-6">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-slate-100 dark:border-slate-800 space-y-8 animate-fadeIn">
             <div className="flex justify-between items-center">
-              <h3 className="text-xl font-black">Edit Personal Profile</h3>
+              <h3 className="text-xl font-black">{t('editProfile')}</h3>
               <button onClick={() => setShowEdit(false)} className="text-slate-400">
                 <span className="material-icons">close</span>
               </button>
@@ -175,7 +184,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
               onClick={handleSaveProfile}
               className="w-full bg-primary text-white font-black py-5 rounded-[2rem] shadow-xl shadow-primary/30 active:scale-95 transition-all text-xs uppercase tracking-widest"
             >
-              Save Profile Changes
+              {t('saveProfileChanges')}
             </button>
           </div>
         </div>
@@ -214,7 +223,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
 
       <div className="overflow-hidden whitespace-nowrap pt-10 pb-5">
         <p className="inline-block animate-marquee text-[10px] text-primary font-black uppercase tracking-[0.5em] opacity-50">
-          Hisaab AI v1.1.0 - Premium Financial Intelligence - Stable Release - powered by MJK.IT
+          Hisaab AI v1.1.0 - Premium Financial Intelligence - Stable Release - {t('powerBy')} MJK.IT
         </p>
       </div>
     </div>
