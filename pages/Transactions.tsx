@@ -51,18 +51,18 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         console.log('Using Native Speech Recognition');
         const { available } = await SpeechRecognition.available();
         if (!available) {
-            alert('Speech recognition is not available on this device.');
-            setIsListening(false);
-            return;
+          alert('Speech recognition is not available on this device.');
+          setIsListening(false);
+          return;
         }
 
         const status = await SpeechRecognition.checkPermissions();
         if ((status as any).display !== 'granted') {
-            const newStatus = await SpeechRecognition.requestPermissions();
-            if ((newStatus as any).display !== 'granted') {
-                setIsListening(false);
-                return;
-            }
+          const newStatus = await SpeechRecognition.requestPermissions();
+          if ((newStatus as any).display !== 'granted') {
+            setIsListening(false);
+            return;
+          }
         }
 
         SpeechRecognition.start({
@@ -72,44 +72,44 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         });
 
         const result = await new Promise<string>(async (resolve, reject) => {
-            let settled = false;
-            let stopTimeoutId: ReturnType<typeof setTimeout> | null = null;
-            let globalTimeoutId: ReturnType<typeof setTimeout> | null = null;
+          let settled = false;
+          let stopTimeoutId: ReturnType<typeof setTimeout> | null = null;
+          let globalTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-            const resultListener = await SpeechRecognition.addListener('results' as any, (data: any) => {
-                if (settled) return;
-                if (data.matches && data.matches.length > 0) {
-                    settled = true;
-                    if (stopTimeoutId) clearTimeout(stopTimeoutId);
-                    if (globalTimeoutId) clearTimeout(globalTimeoutId);
-                    resultListener.remove();
-                    stateListener.remove();
-                    resolve(data.matches[0]);
-                }
-            });
+          const resultListener = await SpeechRecognition.addListener('results' as any, (data: any) => {
+            if (settled) return;
+            if (data.matches && data.matches.length > 0) {
+              settled = true;
+              if (stopTimeoutId) clearTimeout(stopTimeoutId);
+              if (globalTimeoutId) clearTimeout(globalTimeoutId);
+              resultListener.remove();
+              stateListener.remove();
+              resolve(data.matches[0]);
+            }
+          });
 
-            const stateListener = await SpeechRecognition.addListener('listeningState' as any, (state: any) => {
-                if (settled) return;
-                if (state.status === 'stopped') {
-                    stopTimeoutId = setTimeout(() => {
-                        if (settled) return;
-                        settled = true;
-                        if (globalTimeoutId) clearTimeout(globalTimeoutId);
-                        resultListener.remove();
-                        stateListener.remove();
-                        reject('Stopped without results');
-                    }, 500);
-                }
-            });
-
-            globalTimeoutId = setTimeout(() => {
+          const stateListener = await SpeechRecognition.addListener('listeningState' as any, (state: any) => {
+            if (settled) return;
+            if (state.status === 'stopped') {
+              stopTimeoutId = setTimeout(() => {
                 if (settled) return;
                 settled = true;
-                if (stopTimeoutId) clearTimeout(stopTimeoutId);
+                if (globalTimeoutId) clearTimeout(globalTimeoutId);
                 resultListener.remove();
                 stateListener.remove();
-                reject('Speech recognition timed out');
-            }, 30000);
+                reject('Stopped without results');
+              }, 500);
+            }
+          });
+
+          globalTimeoutId = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            if (stopTimeoutId) clearTimeout(stopTimeoutId);
+            resultListener.remove();
+            stateListener.remove();
+            reject('Speech recognition timed out');
+          }, 30000);
         });
 
         processVoiceResult(result);
@@ -118,9 +118,9 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
         console.log('Using Web Speech API Fallback');
         const SpeechRecognitionWeb = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognitionWeb) {
-            alert('Speech recognition is not supported in this browser. Try Chrome or Edge.');
-            setIsListening(false);
-            return;
+          alert('Speech recognition is not supported in this browser. Try Chrome or Edge.');
+          setIsListening(false);
+          return;
         }
 
         const recognition = new SpeechRecognitionWeb();
@@ -137,9 +137,9 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
           console.error('Web Speech API Error:', event.error);
           setIsListening(false);
           if (event.error === 'not-allowed') {
-              alert('Microphone permission denied. Please enable it in browser settings.');
+            alert('Microphone permission denied. Please enable it in browser settings.');
           } else {
-              alert(`Speech recognition error: ${event.error}`);
+            alert(`Speech recognition error: ${event.error}`);
           }
         };
 
@@ -153,7 +153,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
       console.error('Speech recognition error:', err);
       setIsListening(false);
       if (err !== 'Stopped without results') {
-          alert(t('speechError'));
+        alert(t('speechError'));
       }
     }
   };
@@ -162,29 +162,30 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     setIsListening(false);
     setIsUploading(true);
     try {
-        const parsed = await extractTransactionsFromText(text);
-        if (parsed && parsed.length > 0) {
-            const item = parsed[0] as any;
-            const cat = (item.category ?? '').toString();
-            const desc = (item.description ?? '').toString();
-            setFormData({
-                amount: (item.amount ?? 0).toString(),
-                category: cat,
-                type: (item.type ?? 'expense') as TransactionType,
-                description: desc,
-                date: item.date ?? new Date().toISOString().split('T')[0],
-                excludeFromAnalytics: item.type === 'income' &&
-                    (cat.toLowerCase().includes('loan') || cat.toLowerCase().includes('repayment') || cat.toLowerCase().includes('lone'))
-            });
-            setShowAdd(true);
-        } else {
-            alert(t('extractionError'));
-        }
+      const parsed = await extractTransactionsFromText(text);
+      if (parsed && parsed.length > 0) {
+        const item = parsed[0] as any;
+        const rawCat = (item.category ?? '').toString().trim();
+        const cat = rawCat ? rawCat.charAt(0).toUpperCase() + rawCat.slice(1) : '';
+        const desc = (item.description ?? '').toString();
+        setFormData({
+          amount: (item.amount ?? 0).toString(),
+          category: cat,
+          type: (item.type ?? 'expense') as TransactionType,
+          description: desc,
+          date: item.date ?? new Date().toISOString().split('T')[0],
+          excludeFromAnalytics: item.type === 'income' &&
+            (cat.toLowerCase().includes('loan') || cat.toLowerCase().includes('repayment') || cat.toLowerCase().includes('lone'))
+        });
+        setShowAdd(true);
+      } else {
+        alert(t('extractionError'));
+      }
     } catch (err) {
-        console.error('AI Parsing error:', err);
-        alert('Failed to parse your voice input. Please try again.');
+      console.error('AI Parsing error:', err);
+      alert('Failed to parse your voice input. Please try again.');
     } finally {
-        setIsUploading(false);
+      setIsUploading(false);
     }
   };
 
@@ -192,17 +193,20 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
     e?.preventDefault();
     if (!formData.amount || !formData.category) return;
 
+    // Normalize category: Trim, and Capitalize the first letter
+    const normalizedCategory = formData.category.trim().charAt(0).toUpperCase() + formData.category.trim().slice(1);
+
     // Auto-exclude "Loan Repayment" or similar terms from analytics if it's income
     const shouldExclude = formData.excludeFromAnalytics ||
-                         (formData.type === 'income' &&
-                          (formData.category.toLowerCase().includes('loan') ||
-                           formData.category.toLowerCase().includes('repayment') ||
-                           formData.category.toLowerCase().includes('lone')));
+      (formData.type === 'income' &&
+        (normalizedCategory.toLowerCase().includes('loan') ||
+          normalizedCategory.toLowerCase().includes('repayment') ||
+          normalizedCategory.toLowerCase().includes('lone')));
 
     onAdd({
       id: Math.random().toString(36).slice(2, 11),
       amount: parseFloat(formData.amount),
-      category: formData.category,
+      category: normalizedCategory,
       type: formData.type,
       description: formData.description,
       date: formData.date,
@@ -260,7 +264,9 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                 if (values.length > Math.max(dateIdx, amountIdx, categoryIdx)) {
                   const amount = parseFloat(values[amountIdx]);
                   if (!isNaN(amount)) {
-                    const category = values[categoryIdx];
+                    const rawCategory = values[categoryIdx] || '';
+                    const category = rawCategory.trim().charAt(0).toUpperCase() + rawCategory.trim().slice(1);
+
                     const type = (() => {
                       if (typeIdx === -1 || !values[typeIdx]) return 'expense';
                       const t = values[typeIdx].toLowerCase().replace(/[^a-z]/g, '');
@@ -268,9 +274,9 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
                     })() as TransactionType;
 
                     const autoExclude = type === 'income' &&
-                                       (category.toLowerCase().includes('loan') ||
-                                        category.toLowerCase().includes('repayment') ||
-                                        category.toLowerCase().includes('lone'));
+                      (category.toLowerCase().includes('loan') ||
+                        category.toLowerCase().includes('repayment') ||
+                        category.toLowerCase().includes('lone'));
 
                     onAdd({
                       id: Math.random().toString(36).slice(2, 11),
@@ -352,9 +358,12 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
   ];
 
   const handlePreset = (preset: typeof PRESETS[0]) => {
+    // Capitalize the first letter for consistency
+    const capitalizedCategory = preset.label.charAt(0).toUpperCase() + preset.label.slice(1);
+
     setFormData(prev => ({
       ...prev,
-      category: preset.label,
+      category: capitalizedCategory,
       type: preset.type,
       amount: '',
       description: '',
@@ -586,7 +595,7 @@ export const Transactions: React.FC<TransactionsProps> = ({ transactions, onAdd,
             </div>
 
             {/* Exclude Toggle */}
-            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-transparent hover:border-primary/20 transition-all cursor-pointer" onClick={() => setFormData({...formData, excludeFromAnalytics: !formData.excludeFromAnalytics})}>
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-transparent hover:border-primary/20 transition-all cursor-pointer" onClick={() => setFormData({ ...formData, excludeFromAnalytics: !formData.excludeFromAnalytics })}>
               <div className="flex items-center gap-3">
                 <div className={`size-10 rounded-xl flex items-center justify-center ${formData.excludeFromAnalytics ? 'bg-primary/20 text-primary' : 'bg-slate-200 dark:bg-slate-700 text-slate-400'}`}>
                   <span className="material-symbols-outlined text-xl">{formData.excludeFromAnalytics ? 'visibility_off' : 'visibility'}</span>

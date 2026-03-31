@@ -14,7 +14,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   const { profile, updateProfile } = useUser();
   const { theme, toggleTheme } = useTheme();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const { isSyncing, triggerManualSync, lastSyncTime } = useSync();
+  const { isSyncing, triggerManualSync, lastSyncTime, cloudPullCount, cloudPushCount, syncError, hardResetAndSync, isInitialPullDone, localRecordCount, sessionLogs } = useSync();
   const [showEdit, setShowEdit] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [tempPhoto, setTempPhoto] = useState(profile.photo);
@@ -22,6 +22,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
   const syncWord = localStorage.getItem('hisaab_sync_word');
+  const syncDNA = syncWord ? syncWord.slice(0, 3) + '...' + import.meta.env.VITE_SUPABASE_URL.slice(-4) : 'None';
 
   const handleSaveProfile = () => {
     updateProfile({ ...profile, name: tempName, photo: tempPhoto });
@@ -48,16 +49,73 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
 
   const menuGroups = [
     {
+      title: "Cloud Diagnostics",
+      items: [
+        {
+          icon: 'cloud_done',
+          label: 'Cloud Connection',
+          sub: import.meta.env.VITE_SUPABASE_URL ? 'Connected to Supabase' : 'Connection Missing',
+          color: import.meta.env.VITE_SUPABASE_URL ? 'text-emerald-500' : 'text-rose-500',
+          action: () => { }
+        },
+        {
+          icon: 'fingerprint',
+          label: 'Sync DNA',
+          sub: `V-${syncDNA}`,
+          color: 'text-amber-500',
+          action: () => { }
+        },
+        {
+          icon: isSyncing ? 'sync' : 'cloud_download',
+          iconClass: isSyncing ? 'animate-spin' : '',
+          label: 'Data Traffic',
+          sub: `Downloaded: ${cloudPullCount} | Uploaded: ${cloudPushCount}`,
+          sub2: `First Load: ${isInitialPullDone ? 'Success' : 'Pending'}`,
+          action: () => triggerManualSync(),
+          color: 'text-primary'
+        },
+        {
+          custom: (
+            <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-800/50">
+              <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
+                <span className="material-icons text-[10px]">terminal</span> System Activity Log
+              </p>
+              <div className="space-y-1 max-h-[80px] overflow-y-auto">
+                {sessionLogs.map((log, i) => (
+                  <p key={i} className="text-[8px] font-mono text-slate-500 dark:text-slate-400 leading-tight">
+                    {log}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )
+        },
+        {
+          icon: 'database',
+          label: 'Local Storage',
+          sub: `${localRecordCount} Total Records`,
+          sub2: `Last Handshake: ${lastSyncTime}`,
+          color: 'text-blue-500',
+          action: () => { }
+        },
+        {
+          icon: 'restart_alt',
+          label: 'Hard Reset & Sync',
+          sub: 'Wipe local cache & re-download',
+          action: hardResetAndSync,
+          color: 'text-rose-500'
+        }
+      ]
+    },
+    {
       title: t('cloudSyncing'),
       items: [
         {
-          icon: isSyncing ? 'sync' : 'sync',
-          iconClass: isSyncing ? 'animate-spin' : '',
+          icon: 'settings_backup_restore',
           label: t('secretSyncWord'),
-          sub: isSyncing ? t('loading') : `${t('active')}: ${syncWord || 'MCMXCAD3YE'}`,
-          sub2: `${t('lastSync')}: ${lastSyncTime}`,
+          sub: `${t('active')}: ${syncWord || 'Not Set'}`,
           action: () => triggerManualSync(),
-          color: isSyncing ? 'text-primary' : 'text-emerald-500'
+          color: 'text-emerald-500'
         },
         {
           icon: 'cloud_off',
@@ -196,26 +254,32 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
           <h4 className="px-1 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{group.title}</h4>
           <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 overflow-hidden shadow-sm">
             {group.items.map((item, i) => (
-              <button
+              <div
                 key={i}
                 onClick={item.action}
-                className={`w-full flex items-center justify-between p-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all border-b last:border-0 border-slate-50 dark:border-slate-800 group`}
+                className={`w-full flex flex-col hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-all border-b last:border-0 border-slate-50 dark:border-slate-800 group`}
               >
-                <div className="flex items-center gap-4 text-left">
-                  <div className={`size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center ${item.color} group-active:scale-90 transition-transform relative`}>
-                    <span className={`material-icons text-xl ${'iconClass' in item ? item.iconClass : ''}`}>{item.icon}</span>
-                    {('badge' in item && item.badge) && (
-                      <span className="absolute -top-1 -right-1 size-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-bounce"></span>
+                {item.custom ? item.custom : (
+                  <div className="w-full flex items-center justify-between p-5">
+                    <div className="flex items-center gap-4 text-left">
+                      <div className={`size-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center ${item.color} group-active:scale-90 transition-transform relative`}>
+                        <span className={`material-icons text-xl ${'iconClass' in item ? item.iconClass : ''}`}>{item.icon}</span>
+                        {('badge' in item && item.badge) && (
+                          <span className="absolute -top-1 -right-1 size-2.5 bg-rose-500 border-2 border-white dark:border-slate-900 rounded-full animate-bounce"></span>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-slate-900 dark:text-white">{item.label}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">{item.sub}</p>
+                        {('sub2' in item) && <p className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">{item.sub2}</p>}
+                      </div>
+                    </div>
+                    {item.action && (
+                      <span className="material-icons text-slate-300 text-sm group-hover:translate-x-1 transition-transform">arrow_forward_ios</span>
                     )}
                   </div>
-                  <div>
-                    <p className="text-sm font-black text-slate-900 dark:text-white">{item.label}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-tight">{item.sub}</p>
-                    {('sub2' in item) && <p className="text-[8px] font-bold text-slate-500 uppercase mt-0.5">{item.sub2}</p>}
-                  </div>
-                </div>
-                <span className="material-icons text-slate-300 text-sm group-hover:translate-x-1 transition-transform">arrow_forward_ios</span>
-              </button>
+                )}
+              </div>
             ))}
           </div>
         </section>

@@ -48,7 +48,7 @@ subprojects {
                         ? project.android.getDefaultProguardFile('proguard-android-optimize.txt')
                         : f
                 }
-                buildType.proguardFiles.setFrom(fixed)
+                buildType.setProguardFiles(fixed)
             }
         }
     }

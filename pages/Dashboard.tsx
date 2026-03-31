@@ -88,7 +88,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
     monthlyTransactions
       .filter(t => t.type === viewType)
       .forEach(t => {
-        summary[t.category] = (summary[t.category] || 0) + t.amount;
+        const normalizedCat = t.category.trim().toLowerCase();
+        summary[normalizedCat] = (summary[normalizedCat] || 0) + t.amount;
       });
     return Object.entries(summary).sort((a, b) => b[1] - a[1]);
   }, [monthlyTransactions, viewType]);
@@ -215,7 +216,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
                   <div className="flex justify-between items-end gap-4">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <div className={`size-2 rounded-full flex-shrink-0 ${viewType === 'income' ? 'bg-emerald-500' : 'bg-primary'}`}></div>
-                      <span className="text-xs font-black truncate">{cat}</span>
+                      <span className="text-xs font-black truncate capitalize">{cat}</span>
                     </div>
                     <div className="text-right flex-shrink-0">
                       <span className="text-xs font-black text-slate-900 dark:text-white block">€{val.toLocaleString()}</span>
@@ -247,18 +248,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
             <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
               <button
                 onClick={() => setSortBy('date')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                  sortBy === 'date' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
-                }`}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${sortBy === 'date' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[14px]">schedule</span>
                 {t('date')}
               </button>
               <button
                 onClick={() => setSortBy('category')}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
-                  sortBy === 'category' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
-                }`}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${sortBy === 'category' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                  }`}
               >
                 <span className="material-symbols-outlined text-[14px]">category</span>
                 {t('category')}
@@ -270,7 +269,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
         <div className="space-y-3">
           {monthlyTransactions.slice().sort((a, b) => {
             if (sortBy === 'category') {
-              const catCompare = a.category.localeCompare(b.category);
+              const catCompare = a.category.trim().toLowerCase().localeCompare(b.category.trim().toLowerCase());
               if (catCompare !== 0) return catCompare;
               return new Date(b.date).getTime() - new Date(a.date).getTime();
             }
@@ -284,7 +283,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ transactions }) => {
                   </span>
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate">{t.category}</p>
+                  <p className="text-sm font-black text-slate-900 dark:text-white leading-tight truncate capitalize">{t.category}</p>
                   <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5 truncate">{t.description || 'General Log'} • {formatDisplayDate(t.date)}</p>
                 </div>
               </div>

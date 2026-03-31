@@ -14,18 +14,18 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
   const incomeTransactions = transactions.filter(t => {
     const d = new Date(t.date);
     return t.type === 'income' &&
-           d.getMonth() === selectedMonth &&
-           d.getFullYear() === selectedYear &&
-           !t.excludeFromAnalytics;
+      d.getMonth() === selectedMonth &&
+      d.getFullYear() === selectedYear &&
+      !t.excludeFromAnalytics;
   });
 
   // Get unique days with income
   const uniqueDays = new Set(incomeTransactions.map(t => t.date.split('T')[0]));
   const workingDaysCount = uniqueDays.size;
-  
+
   const totalIncome = incomeTransactions.reduce((acc, curr) => acc + curr.amount, 0);
   const dailyAverage = workingDaysCount > 0 ? totalIncome / workingDaysCount : 0;
-  
+
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const monthlyProjection = dailyAverage * daysInMonth;
 
@@ -49,7 +49,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
   if (workingDaysCount === 0) return null;
 
   return (
-    <div className="bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] p-7 border border-white/10 shadow-2xl relative overflow-hidden group">
+    <div className="bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] p-4 border border-white/10 shadow-2xl relative overflow-hidden group">
       {/* Background Decoration */}
       <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-110 transition-transform duration-500 pointer-events-none">
         <span className="material-symbols-outlined text-[120px] text-primary">trending_up</span>
@@ -94,7 +94,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
           </div>
 
           {/* Daily Graph Section */}
-          <div className="h-48 relative group/graph bg-white/5 rounded-3xl p-4 border border-white/5">
+          <div className="h-64 relative group/graph bg-white/5 rounded-3xl p-3 border border-white/5 select-none" style={{ WebkitTapHighlightColor: 'transparent', WebkitUserSelect: 'none', userSelect: 'none', outline: 'none', touchAction: 'manipulation' }}>
             <div className="absolute top-3 left-4 z-20">
               <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
                 <span className="size-1.5 rounded-full bg-primary"></span>
@@ -102,54 +102,72 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
               </p>
             </div>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyData} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
+              <AreaChart data={dailyData} margin={{ top: 20, right: 5, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorAmount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" />
-                <XAxis 
-                  dataKey="day" 
-                  hide={true}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.03)" style={{ pointerEvents: 'none' }} />
+                <XAxis
+                  dataKey="day"
+                  hide={false}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b', pointerEvents: 'none' }}
+                  dy={5}
                 />
-                <YAxis hide={true} domain={[0, 'auto']} />
-                <Tooltip 
+                <YAxis
+                  hide={false}
+                  domain={[0, 'auto']}
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 8, fontWeight: 900, fill: '#64748b', pointerEvents: 'none' }}
+                />
+                <Tooltip
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl">
+                        <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl pointer-events-none select-none">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('dayLabel')} {payload[0].payload.day}</p>
-                          <p className="text-sm font-black text-white">€{payload[0].value?.toLocaleString()}</p>
+                          <p className="text-sm font-black text-white">€{payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                         </div>
                       );
                     }
                     return null;
                   }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="amount" 
-                  stroke="#3b82f6" 
+                <Area
+                  type="monotone"
+                  dataKey="amount"
+                  stroke="#3b82f6"
                   strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorAmount)" 
+                  fillOpacity={1}
+                  fill="url(#colorAmount)"
                   animationDuration={2000}
                 />
-                <ReferenceLine 
-                  y={dailyAverage} 
-                  stroke="#10b981" 
-                  strokeDasharray="5 5" 
+                <ReferenceLine
+                  y={dailyAverage}
+                  stroke="#10b981"
+                  strokeDasharray="4 4"
                   strokeWidth={2}
-                  label={{ 
-                    position: 'insideBottomRight', 
-                    value: t('avgLabel'), 
-                    fill: '#10b981', 
-                    fontSize: 8, 
-                    fontWeight: 900,
-                    offset: 10
-                  }} 
+                  label={(props: any) => {
+                    const { viewBox } = props;
+                    return (
+                      <text
+                        x={viewBox.width + viewBox.x}
+                        y={viewBox.y - 12}
+                        fill="#10b981"
+                        fontSize={10}
+                        fontWeight={900}
+                        textAnchor="end"
+                        className="font-mono"
+                      >
+                        AVG: €{dailyAverage.toFixed(2)}
+                      </text>
+                    );
+                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>

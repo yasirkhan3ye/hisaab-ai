@@ -16,38 +16,61 @@ export const syncDataToCloud = async (table: string, data: any[]) => {
     const syncWord = localStorage.getItem('hisaab_sync_word');
     if (!syncWord) return;
 
-    // Attach the sync word to every record as the user_id
-    const dataWithSync = data.map(item => ({
-        ...item,
-        user_id: syncWord
-    }));
+    // Whitelist: Only send columns that exist in Supabase tables
+    const allowedFields: Record<string, string[]> = {
+        transactions: ['id', 'amount', 'category', 'date', 'type', 'description'],
+        lend_records: ['id', 'personName', 'amount', 'currency', 'exchangeRateAtLending', 'dateLent', 'dueDate', 'status', 'description', 'repayments'],
+        profiles: ['name', 'avatarSeed', 'photo'],
+    };
+
+    const fields = allowedFields[table];
+
+    // Sanitize: strip any fields NOT in the whitelist, then attach user_id
+    const dataWithSync = data.map(item => {
+        const clean: any = { user_id: syncWord };
+        if (fields) {
+            fields.forEach(f => {
+                if (item[f] !== undefined) clean[f] = item[f];
+            });
+        } else {
+            // Fallback: send everything but strip known problematic fields
+            Object.keys(item).forEach(k => {
+                if (k !== 'excludeFromAnalytics') clean[k] = item[k];
+            });
+        }
+        return clean;
+    });
 
     const { error } = await supabase
         .from(table)
         .upsert(dataWithSync, { onConflict: 'id' });
 
-    if (error) console.error(`Sync error for ${table}:`, error);
+    if (error) {
+        console.error(`Sync error for ${table}:`, error);
+        return error;
+    }
+    return null;
 };
 
 /**
  * Fetches data from the cloud that matches the current device's Secret Sync Word.
  */
 export const fetchDataFromCloud = async (table: string) => {
-    if (!supabaseUrl) return null;
+    if (!supabaseUrl) return { data: null, error: 'No Supabase URL' };
 
     const syncWord = localStorage.getItem('hisaab_sync_word');
-    if (!syncWord) return null;
+    if (!syncWord) return { data: null, error: 'No Sync Word' };
 
     const { data, error } = await supabase
         .from(table)
         .select('*')
-        .eq('user_id', syncWord); // Filter by the secret word
+        .eq('user_id', syncWord);
 
     if (error) {
         console.error(`Fetch error for ${table}:`, error);
-        return null;
+        return { data: null, error };
     }
-    return data;
+    return { data, error: null };
 };
 
 /**
