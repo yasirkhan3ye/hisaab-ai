@@ -1,11 +1,14 @@
 
 import React, { useState, useEffect, ErrorInfo, ReactNode, createContext, useContext } from 'react';
+import { LocalNotifications } from '@capacitor/local-notifications';
+import { Capacitor } from '@capacitor/core';
 import { HashRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Transactions } from './pages/Transactions';
 import { Analytics } from './pages/Analytics';
+import { FiscalCalculator } from './pages/FiscalCalculator';
 import { Lend } from './pages/Lend';
 import { Menu } from './pages/Menu';
 import { Transaction, LendRecord, UserProfile, Notification } from './types';
@@ -61,6 +64,7 @@ interface SyncContextType {
   syncError: string | null;
   syncWord: string | null;
   hardResetAndSync: () => Promise<void>;
+  deduplicateTransactions: () => void;
   isInitialPullDone: boolean;
   localRecordCount: number;
   sessionLogs: string[];
@@ -72,7 +76,7 @@ export const useSync = () => {
   return context;
 };
 
-class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError: boolean }> {
+class ErrorBoundary extends React.Component<{ children: ReactNode, t: any }, { hasError: boolean }> {
   public state = { hasError: false };
   public static getDerivedStateFromError(_: Error) { return { hasError: true }; }
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -80,11 +84,12 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }, { hasError:
   }
   public render() {
     if (this.state.hasError) {
+      const { t } = this.props;
       return (
         <div className="h-screen flex flex-col items-center justify-center p-8 text-center bg-[#020617] text-white">
           <span className="material-icons text-rose-500 text-6xl mb-4">error</span>
-          <h2 className="text-xl font-black mb-2">Something went wrong</h2>
-          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-primary rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/30">Refresh</button>
+          <h2 className="text-xl font-black mb-2">{t('somethingWentWrong') || 'Something went wrong'}</h2>
+          <button onClick={() => window.location.reload()} className="px-8 py-3 bg-primary rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl shadow-primary/30">{t('ok')}</button>
         </div>
       );
     }
@@ -144,6 +149,103 @@ const HisaabApp: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    const checkDueDates = async () => {
+      // 1. Request Permission for Local Notifications (Android 13+)
+      if (Capacitor.isNativePlatform()) {
+        try {
+          let permStatus = await LocalNotifications.checkPermissions();
+          if (permStatus.display !== 'granted') {
+            await LocalNotifications.requestPermissions();
+          }
+        } catch (e) {
+          console.error("Notif perm error:", e);
+        }
+      }
+
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      const newInAppNotifs: Notification[] = [];
+      const localNotifsToSchedule: any[] = [];
+
+      lendRecords.forEach(record => {
+        if (record.status === 'returned' || !record.dueDate) return;
+
+        const dueDate = new Date(record.dueDate);
+        dueDate.setHours(0, 0, 0, 0);
+
+        const diffTime = dueDate.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Calculate remaining amount simply
+        const repaid = record.repayments.reduce((s, r) => s + r.amount, 0);
+        const remaining = record.amount - repaid;
+
+        if (remaining <= 0) return;
+
+        const notifId = `due_${record.id}_${diffDays <= 0 ? 'overdue' : 'upcoming'}`;
+        const alreadyNotified = notifications.some(n => n.id === notifId);
+
+        if (!alreadyNotified) {
+          if (diffDays < 0) {
+            newInAppNotifs.push({
+              id: notifId,
+              title: 'Loan Overdue!',
+              message: `${record.personName} is late on a repayment of €${remaining}. Due date was ${record.dueDate}.`,
+              date: new Date().toISOString(),
+              isRead: false,
+              type: 'alert'
+            });
+          } else if (diffDays === 0) {
+            newInAppNotifs.push({
+              id: notifId,
+              title: 'Repayment Due Today',
+              message: `${record.personName} is scheduled to repay €${remaining} today.`,
+              date: new Date().toISOString(),
+              isRead: false,
+              type: 'alert'
+            });
+          }
+        }
+
+        if (Capacitor.isNativePlatform() && diffDays >= 0) {
+          const scheduleDate = new Date(record.dueDate);
+          scheduleDate.setHours(9, 0, 0, 0); // 9 AM on due date
+
+          if (scheduleDate.getTime() > new Date().getTime()) {
+             // Hash ID to numeric for LocalNotifications
+             const numId = Math.abs(record.id.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0));
+             localNotifsToSchedule.push({
+               id: numId,
+               title: 'Repayment Due',
+               body: `${record.personName} is due to repay €${remaining} today!`,
+               schedule: { at: scheduleDate },
+             });
+          }
+        }
+      });
+
+      if (newInAppNotifs.length > 0) {
+        setNotifications(prev => {
+          const existingIds = new Set(prev.map(n => n.id));
+          const filteredNew = newInAppNotifs.filter(n => !existingIds.has(n.id));
+          return [...filteredNew, ...prev];
+        });
+      }
+
+      if (Capacitor.isNativePlatform() && localNotifsToSchedule.length > 0) {
+        try {
+          await LocalNotifications.schedule({ notifications: localNotifsToSchedule });
+        } catch (e) {
+          console.error("Local Notif Error", e);
+        }
+      }
+    };
+
+    checkDueDates();
+  }, [lendRecords]); // Check whenever records change
 
   const pullDataFromCloud = async () => {
     if (!syncWord) return;
@@ -273,7 +375,14 @@ const HisaabApp: React.FC = () => {
       const realTxs = transactions.filter(t => !t.id.startsWith('sample-'));
       if (realTxs.length > 0) {
         syncDataToCloud('transactions', realTxs).then(err => {
-          if (!err) setCloudPushCount(realTxs.length);
+          if (!err) {
+            setCloudPushCount(realTxs.length);
+            addLog(`Auto-pushed ${realTxs.length} transactions`);
+          } else {
+            const errorMsg = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
+            addLog(`Sync Blocked: ${errorMsg}`);
+            setSyncError(errorMsg);
+          }
         });
       }
 
@@ -287,14 +396,76 @@ const HisaabApp: React.FC = () => {
       const realTxs = transactions.filter(t => !t.id.startsWith('sample-'));
       if (realTxs.length > 0) {
         syncDataToCloud('transactions', realTxs).then(err => {
-          if (!err) setCloudPushCount(realTxs.length);
+          if (!err) {
+            setCloudPushCount(realTxs.length);
+            addLog(`Auto-pushed ${realTxs.length} transactions`);
+          } else {
+            const errorMsg = typeof err === 'string' ? err : (err.message || JSON.stringify(err));
+            addLog(`Sync Blocked: ${errorMsg}`);
+            setSyncError(errorMsg);
+          }
         });
       }
     }
-  }, [transactions, syncWord]);
+  }, [transactions, syncWord, isInitialPullDone]);
 
-  const triggerFullSync = async () => {
-    if (!syncWord) {
+  useEffect(() => {
+    // ONE-TIME CLEANUP: Fix [PENDING] transactions with included tips
+    const hasPendingWithIncludedTips = transactions.some(t =>
+      t.type === 'income' &&
+      (t.description || '').includes('[PENDING]') &&
+      (t.description || '').includes('(Includes €')
+    );
+
+    if (hasPendingWithIncludedTips) {
+      console.log("Cleanup: Separating included tips from pending transactions...");
+      setTransactions(prev => {
+        const newTxs: Transaction[] = [];
+        const updatedPrev = prev.map(t => {
+          if (t.type === 'income' && (t.description || '').includes('[PENDING]') && (t.description || '').includes('(Includes €')) {
+            // Extract tip amount using regex
+            const match = t.description.match(/\(Includes €([\d\.]+)\sTip\)/);
+            if (match && match[1]) {
+              const tipAmount = parseFloat(match[1]);
+              const mainAmount = t.amount - tipAmount;
+
+              // 1. Create separate tip transaction (already cleared)
+              newTxs.push({
+                id: `tip-cleanup-${t.id}-${Math.random().toString(36).slice(2, 5)}`,
+                amount: tipAmount,
+                category: 'Tips',
+                type: 'income',
+                description: `Cash tip (recovered from ${t.category})`,
+                date: t.date,
+                excludeFromAnalytics: false,
+                timestamp: new Date().toISOString()
+              });
+
+              // 2. Return updated main transaction
+              return {
+                ...t,
+                amount: mainAmount,
+                description: t.description.replace(/\s?\(Includes €[\d\.]+\sTip\)/, '').trim()
+              };
+            }
+          }
+          return t;
+        });
+        return [...updatedPrev, ...newTxs];
+      });
+    }
+
+    // ONE-TIME CLEANUP: Forcefully remove the specific problematic lending amount
+    const problematicAmount = 3225.23;
+    const hasProblem = transactions.some(t => Math.abs(t.amount - problematicAmount) < 0.01);
+
+    if (hasProblem) {
+      console.log("Cleanup: Purging problematic lending transaction...");
+      setTransactions(prev => prev.filter(t => Math.abs(t.amount - problematicAmount) > 0.01));
+    }
+  }, [transactions]);
+
+  const triggerFullSync = async () => {    if (!syncWord) {
       addLog('No sync word set. Aborting.');
       return;
     }
@@ -349,6 +520,27 @@ const HisaabApp: React.FC = () => {
     window.location.reload();
   };
 
+  const deduplicateTransactions = () => {
+    setTransactions(prev => {
+      const seen = new Set();
+      const unique = prev.filter(t => {
+        // Create a unique key for the transaction details
+        const key = `${t.date}-${t.amount}-${t.category}-${t.type}-${t.description || ''}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      const removedCount = prev.length - unique.length;
+      if (removedCount > 0) {
+        alert(`Successfully removed ${removedCount} duplicate entries!`);
+      } else {
+        alert("No duplicates found.");
+      }
+      return unique;
+    });
+  };
+
   useEffect(() => {
     if (syncWord && isInitialPullDone) {
       localStorage.setItem('fingemini_lend', JSON.stringify(lendRecords));
@@ -379,11 +571,28 @@ const HisaabApp: React.FC = () => {
     setTransactions(prev => prev.filter(t => t.id !== id));
     await deleteRecordFromCloud('transactions', id);
   };
+  const updateTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+  };
+  const bulkUpdateTransactions = (updatedTxs: Transaction[]) => {
+    setTransactions(prev => {
+      const updatedIds = new Set(updatedTxs.map(t => t.id));
+      const untouched = prev.filter(t => !updatedIds.has(t.id));
+      return [...untouched, ...updatedTxs];
+    });
+  };
 
   const addLendRecord = (r: LendRecord) => setLendRecords(prev => [...prev, r]);
   const addLendRecords = (records: LendRecord[]) => setLendRecords(prev => [...prev, ...records]);
   const updateLendRecord = (updatedRecord: LendRecord) => setLendRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
   const deleteLendRecord = async (id: string) => {
+    const record = lendRecords.find(r => r.id === id);
+    if (record) {
+      // Also find and delete the associated transaction in the wallet
+      setTransactions(prev => prev.filter(t =>
+        !(t.category === 'Lending' && t.description.includes(record.personName))
+      ));
+    }
     setLendRecords(prev => prev.filter(r => r.id !== id));
     await deleteRecordFromCloud('lend_records', id);
   };
@@ -428,27 +637,27 @@ const HisaabApp: React.FC = () => {
           {/* Debug Status */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-left space-y-2">
             <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Cloud URL:</span>
-              <span className="text-[8px] font-bold text-emerald-500">{import.meta.env.VITE_SUPABASE_URL ? 'Connected' : 'Missing'}</span>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{t('cloudConnection')}:</span>
+              <span className="text-[8px] font-bold text-emerald-500">{import.meta.env.VITE_SUPABASE_URL ? t('onlineSynced') : t('connectionMissing')}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Initial Pull:</span>
               <span className={`text-[8px] font-bold ${isInitialPullDone ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {isInitialPullDone ? 'Success' : 'Pending...'}
+                {isInitialPullDone ? t('confirm') : t('loading')}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Sync DNA:</span>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{t('syncDNA')}:</span>
               <span className="text-[8px] font-mono text-amber-400">
-                {syncWord ? syncWord.slice(0, 3) + '...' + import.meta.env.VITE_SUPABASE_URL.slice(-4) : 'None'}
+                {syncWord ? syncWord.slice(0, 3) + '...' + import.meta.env.VITE_SUPABASE_URL.slice(-4) : t('none')}
               </span>
             </div>
             <div className="flex justify-between items-center px-2 py-0.5 bg-black/20 rounded-lg">
-              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Downloaded:</span>
+              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{t('downloaded')}:</span>
               <span className="text-[8px] font-bold text-emerald-400">{cloudPullCount}</span>
             </div>
             <div className="flex justify-between items-center px-2 py-0.5 bg-black/20 rounded-lg">
-              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">Uploaded:</span>
+              <span className="text-[7px] font-black text-slate-500 uppercase tracking-widest">{t('uploaded')}:</span>
               <span className="text-[8px] font-bold text-blue-400">{cloudPushCount}</span>
             </div>
             {syncError && (
@@ -458,7 +667,7 @@ const HisaabApp: React.FC = () => {
               </div>
             )}
             <div className="flex justify-between items-center">
-              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">Local Records:</span>
+              <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest">{t('localStorage')}:</span>
               <span className="text-[8px] font-bold text-blue-400">{transactions.length}</span>
             </div>
 
@@ -466,7 +675,7 @@ const HisaabApp: React.FC = () => {
               onClick={hardResetAndSync}
               className="w-full mt-2 py-2 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl text-[7px] font-black text-rose-400 uppercase tracking-widest transition-colors"
             >
-              Hard Reset & Sync
+              {t('hardReset')}
             </button>
           </div>
 
@@ -496,6 +705,8 @@ const HisaabApp: React.FC = () => {
       lendRecords={lendRecords}
       addTransaction={addTransaction}
       deleteTransaction={deleteTransaction}
+      updateTransaction={updateTransaction}
+      bulkUpdateTransactions={bulkUpdateTransactions}
       addLendRecord={addLendRecord}
       addLendRecords={addLendRecords}
       updateLendRecord={updateLendRecord}
@@ -504,6 +715,7 @@ const HisaabApp: React.FC = () => {
       cloudPushCount={cloudPushCount}
       syncError={syncError}
       hardResetAndSync={hardResetAndSync}
+      deduplicateTransactions={deduplicateTransactions}
       isInitialPullDone={isInitialPullDone}
       triggerFullSync={triggerFullSync}
       sessionLogs={sessionLogs}
@@ -520,7 +732,8 @@ const App: React.FC = () => {
   );
 };
 
-const AppContent: React.FC<any> = ({ transactions, syncWord, isSyncing, pullDataFromCloud, lastSyncTime, theme, toggleTheme, profile, updateProfile, notifications, unreadCount, markAsRead, markAllAsRead, lendRecords, addTransaction, deleteTransaction, addLendRecord, addLendRecords, updateLendRecord, deleteLendRecord, cloudPullCount, cloudPushCount, syncError, hardResetAndSync, isInitialPullDone, triggerFullSync, sessionLogs }) => {
+const AppContent: React.FC<any> = ({ transactions, syncWord, isSyncing, pullDataFromCloud, lastSyncTime, theme, toggleTheme, profile, updateProfile, notifications, unreadCount, markAsRead, markAllAsRead, lendRecords, addTransaction, deleteTransaction, updateTransaction, bulkUpdateTransactions, addLendRecord, addLendRecords, updateLendRecord, deleteLendRecord, cloudPullCount, cloudPushCount, syncError, hardResetAndSync, deduplicateTransactions, isInitialPullDone, triggerFullSync, sessionLogs }) => {
+  const { t } = useTranslation();
   return (
     <SyncContext.Provider value={{
       isSyncing,
@@ -531,6 +744,7 @@ const AppContent: React.FC<any> = ({ transactions, syncWord, isSyncing, pullData
       syncError,
       syncWord,
       hardResetAndSync,
+      deduplicateTransactions,
       isInitialPullDone,
       localRecordCount: transactions.length,
       sessionLogs
@@ -538,13 +752,14 @@ const AppContent: React.FC<any> = ({ transactions, syncWord, isSyncing, pullData
       <ThemeContext.Provider value={{ theme, toggleTheme }}>
         <UserContext.Provider value={{ profile, updateProfile }}>
           <NotificationContext.Provider value={{ notifications, unreadCount, markAsRead, markAllAsRead }}>
-            <ErrorBoundary>
+            <ErrorBoundary t={t}>
               <HashRouter>
                 <Layout>
                   <Routes>
                     <Route path="/" element={<Dashboard transactions={transactions} />} />
-                    <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} />} />
+                    <Route path="/transactions" element={<Transactions transactions={transactions} onAdd={addTransaction} onDelete={deleteTransaction} onUpdate={updateTransaction} onBulkUpdate={bulkUpdateTransactions} />} />
                     <Route path="/analytics" element={<Analytics transactions={transactions} />} />
+                    <Route path="/fiscal" element={<FiscalCalculator />} />
                     <Route path="/lend" element={<Lend lendRecords={lendRecords} onAdd={addLendRecord} onAddBulk={addLendRecords} onUpdate={updateLendRecord} onDelete={deleteLendRecord} onAddTransaction={addTransaction} />} />
                     <Route path="/menu" element={<Menu />} />
                   </Routes>

@@ -51,46 +51,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json(parsed);
       }
 
-      case 'receipt': {
-        const base64Image = payload?.base64Image;
-        if (typeof base64Image !== 'string') {
-          return res.status(400).json({ error: 'Missing base64Image' });
-        }
-        const data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
-        if (!data) {
-          return res.status(400).json({ error: 'Invalid base64 image data' });
-        }
-        const response = await ai.models.generateContent({
-          model: GEMINI_MODEL,
-          contents: {
-            parts: [
-              { inlineData: { mimeType: 'image/jpeg', data } },
-              {
-                text: 'Analyze this receipt image for Hisaab AI. Extract: amount (number), category (one word), date (YYYY-MM-DD), type (expense/income), and description. Output JSON.',
-              },
-            ],
-          },
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                amount: { type: Type.NUMBER },
-                category: { type: Type.STRING },
-                date: { type: Type.STRING },
-                type: { type: Type.STRING },
-                description: { type: Type.STRING },
-              },
-              required: ['amount', 'category', 'date', 'type', 'description'],
-              propertyOrdering: ['amount', 'category', 'date', 'type', 'description'],
-            },
-          },
-        });
-        const text = (response as { text?: string }).text ?? '';
-        const parsed = text.trim() ? JSON.parse(text.trim()) : null;
-        return res.status(200).json(parsed);
-      }
-
       case 'rates': {
         const baseCurrency = payload?.baseCurrency ?? 'EUR';
         const targets = Array.isArray(payload?.targets) ? payload.targets : ['PKR'];

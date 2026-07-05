@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Transaction } from '../types';
 import { AreaChart, Area, ResponsiveContainer, Tooltip, ReferenceLine, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useTranslation } from '../services/LanguageContext';
+import { formatAmount } from '../services/formatters';
 
 interface SmartProjectionProps {
   transactions: Transaction[];
@@ -19,14 +20,37 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
       !t.excludeFromAnalytics;
   });
 
-  // Get unique days with income
-  const uniqueDays = new Set(incomeTransactions.map(t => t.date.split('T')[0]));
-  const workingDaysCount = uniqueDays.size;
+  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+
+  // Logic to determine how many days to divide by:
+  // If it's the current month, use the current day of the month.
+  // If it's a past month, use the total days in that month.
+  const now = new Date();
+  const isCurrentMonth = now.getMonth() === selectedMonth && now.getFullYear() === selectedYear;
+
+  // Optimized Divisor Logic:
+  // If it's the current month, we check if the user has actually started working today.
+  // We subtract 1 from the day count if it's before 11:00 AM AND no transactions have been logged yet.
+  // This keeps the "Daily Average" (Target) stable in the morning.
+  const hasIncomeToday = useMemo(() => {
+    if (!isCurrentMonth) return false;
+    const todayStr = now.toISOString().split('T')[0];
+    return incomeTransactions.some(t => t.date.split('T')[0] === todayStr);
+  }, [incomeTransactions, isCurrentMonth, now]);
+
+  const daysElapsed = useMemo(() => {
+    if (!isCurrentMonth) return daysInMonth;
+    const currentDay = now.getDate();
+    // If it's early (before 11 AM) and no work is logged, don't count today as 'elapsed' for the average
+    if (currentDay > 1 && !hasIncomeToday && now.getHours() < 11) {
+      return currentDay - 1;
+    }
+    return currentDay;
+  }, [isCurrentMonth, hasIncomeToday, daysInMonth, now]);
 
   const totalIncome = incomeTransactions.reduce((acc, curr) => acc + curr.amount, 0);
-  const dailyAverage = workingDaysCount > 0 ? totalIncome / workingDaysCount : 0;
+  const dailyAverage = daysElapsed > 0 ? totalIncome / daysElapsed : 0;
 
-  const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
   const monthlyProjection = dailyAverage * daysInMonth;
 
   // Prepare data for the daily graph
@@ -46,7 +70,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
     return data;
   }, [incomeTransactions, selectedMonth, selectedYear, daysInMonth]);
 
-  if (workingDaysCount === 0) return null;
+  if (totalIncome === 0) return null;
 
   return (
     <div className="bg-slate-900/40 backdrop-blur-3xl rounded-[2.5rem] p-4 border border-white/10 shadow-2xl relative overflow-hidden group">
@@ -65,7 +89,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
           </div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 border border-primary/20">
             <span className="size-1.5 bg-primary rounded-full animate-pulse"></span>
-            <span className="text-[9px] font-black text-primary uppercase tracking-tighter">{workingDaysCount} {t('workingDays')}</span>
+            <span className="text-[9px] font-black text-primary uppercase tracking-tighter">{daysElapsed} {t('daysElapsed')}</span>
           </div>
         </div>
 
@@ -74,7 +98,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
             <div className="space-y-1">
               <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{t('dailyAverageHighlights')}</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black text-white">€{dailyAverage.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                <span className="text-4xl font-black text-white">€{formatAmount(dailyAverage)}</span>
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{t('perDay')}</span>
               </div>
             </div>
@@ -84,7 +108,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
             <div className="flex justify-between items-end">
               <div>
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t('estimatedMonthlyTotal')}</p>
-                <p className="text-2xl font-black text-emerald-400">€{monthlyProjection.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                <p className="text-2xl font-black text-emerald-400">€{formatAmount(monthlyProjection)}</p>
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">{t('monthPotential')}</p>
@@ -131,7 +155,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
                       return (
                         <div className="bg-slate-900/90 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl pointer-events-none select-none">
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{t('dayLabel')} {payload[0].payload.day}</p>
-                          <p className="text-sm font-black text-white">€{payload[0].value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                          <p className="text-sm font-black text-white">€{formatAmount(payload[0].value as number)}</p>
                         </div>
                       );
                     }
@@ -164,7 +188,7 @@ export const SmartProjection: React.FC<SmartProjectionProps> = ({ transactions, 
                         textAnchor="end"
                         className="font-mono"
                       >
-                        AVG: €{dailyAverage.toFixed(2)}
+                        {t('avgLabel')}: €{formatAmount(dailyAverage)}
                       </text>
                     );
                   }}

@@ -9,6 +9,7 @@ export interface Transaction {
   type: TransactionType;
   description: string;
   excludeFromAnalytics?: boolean;
+  timestamp?: string;
 }
 
 export type LendStatus = 'pending' | 'returned' | 'partial';

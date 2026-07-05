@@ -3,7 +3,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { LendRecord, LendStatus, CurrencyType, Repayment, Transaction } from '../types';
 import { fetchExchangeRates } from '../services/geminiService';
 import { useTranslation } from '../services/LanguageContext';
-import { formatDisplayDate } from '../services/formatters';
+import { formatDisplayDate, formatAmount } from '../services/formatters';
+import { Capacitor } from '@capacitor/core';
+import { Share } from '@capacitor/share';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+
+import { extractTransactionsFromText } from '../services/geminiService';
 
 interface LendProps {
   lendRecords: LendRecord[];
@@ -17,12 +22,15 @@ interface LendProps {
 export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpdate, onDelete, onAddTransaction }) => {
   const { t } = useTranslation();
   const [showAdd, setShowAdd] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [fetchingRate, setFetchingRate] = useState(false);
   const [currentPkrRate, setCurrentPkrRate] = useState<number>(300);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [repaymentModal, setRepaymentModal] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showTemplateHelp, setShowTemplateHelp] = useState(false);
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
+  const [pasteData, setPasteData] = useState('');
 
   const [formData, setFormData] = useState({
     personName: '',
@@ -66,6 +74,79 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
         }
       }
     }, 0);
+  };
+
+  const handleBulkPaste = async () => {
+    if (!pasteData.trim()) return;
+    setIsUploading(true);
+
+    try {
+      // Use AI to solve the "puzzle" of unstructured text
+      const extracted = await extractTransactionsFromText(pasteData);
+
+      if (extracted && extracted.length > 0) {
+        // Group extracted transactions by person
+        const peopleMap: Record<string, LendRecord> = {};
+
+        extracted.forEach((item: any) => {
+          // Identify the person (Fazal/Fazel normalization)
+          let name = (item.category || item.description || 'Unknown').split(' ')[0];
+          name = name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+          if (name === 'Fazel') name = 'Fazal';
+
+          if (!peopleMap[name]) {
+            peopleMap[name] = {
+              id: Math.random().toString(36).slice(2, 11),
+              personName: name,
+              amount: 0,
+              currency: 'EUR',
+              exchangeRateAtLending: currentPkrRate,
+              dateLent: item.date,
+              dueDate: '',
+              status: 'pending',
+              description: 'Consolidated History',
+              repayments: []
+            };
+          }
+
+          if (item.type === 'expense') {
+            // Money lent out
+            peopleMap[name].amount += item.amount;
+            if (new Date(item.date) < new Date(peopleMap[name].dateLent)) {
+                peopleMap[name].dateLent = item.date;
+            }
+          } else {
+            // Money paid back
+            peopleMap[name].repayments.push({
+              id: Math.random().toString(36).slice(2, 11),
+              amount: item.amount,
+              currency: 'EUR',
+              exchangeRateAtRepayment: currentPkrRate,
+              date: item.date
+            });
+          }
+        });
+
+        const finalRecords = Object.values(peopleMap);
+        finalRecords.forEach(record => {
+            const repaid = calculateTotalRepaid(record);
+            if (repaid >= record.amount) record.status = 'returned';
+            else if (repaid > 0) record.status = 'partial';
+            onAdd(record);
+        });
+
+        alert(`AI successfully analyzed and imported ${finalRecords.length} people and their payment histories!`);
+        setPasteData('');
+        setShowBulkPaste(false);
+      } else {
+        alert("Could not interpret the text. Please try with clearer rows.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("AI interpretation failed.");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -166,7 +247,29 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
 
   const csvTemplateContent = "personName,amount,currency,dateLent,dueDate,description\nChangaiz Mehmood,1849,EUR,2024-03-01,2025-03-28,Business Loan\nAdnan Khan,500,EUR,2024-03-05,2024-12-01,Personal Assistance";
 
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const fileName = `hisaab_receivables_template_${Date.now()}.csv`;
+        const result = await Filesystem.writeFile({
+          path: fileName,
+          data: csvTemplateContent,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        });
+
+        await Share.share({
+          title: 'Hisaab Receivables Template',
+          url: result.uri,
+          dialogTitle: 'Save Receivables Template',
+        });
+      } catch (err) {
+        console.error("Share failed", err);
+        setShowTemplateHelp(true);
+      }
+      return;
+    }
+
     try {
       const blob = new Blob([csvTemplateContent], { type: 'text/csv;charset=utf-8' });
       const url = window.URL.createObjectURL(blob);
@@ -251,7 +354,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-2">{t('portfolioSummary')}</p>
             <div className="mb-6">
               <h2 className="text-4xl font-black tracking-tighter">
-                €{totalReceivableEUR.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                €{formatAmount(totalReceivableEUR)}
               </h2>
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">{t('receivableBalance')}</p>
             </div>
@@ -262,6 +365,13 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                 className="flex-1 bg-primary text-white py-4 rounded-2xl font-black hover:bg-primary/90 transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 uppercase text-[11px] tracking-widest"
               >
                 {showAdd ? t('closeForm') : t('recordNewLoan')}
+              </button>
+              <button
+                onClick={() => { setShowBulkPaste(!showBulkPaste); setShowAdd(false); }}
+                className={`size-12 rounded-2xl flex items-center justify-center transition-all ${showBulkPaste ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/50' : 'bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white'}`}
+                title="Bulk Paste from Excel"
+              >
+                <span className="material-symbols-outlined text-2xl font-black">content_paste</span>
               </button>
               <div className="flex bg-white/5 p-1 rounded-2xl">
                 <button onClick={downloadTemplate} className="size-11 flex items-center justify-center text-slate-400 hover:text-white" title="Download Template"><span className="material-symbols-outlined text-lg">download</span></button>
@@ -277,6 +387,36 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
           </div>
         </div>
       </header>
+
+      {showBulkPaste && (
+        <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-7 border border-slate-100 dark:border-slate-800 shadow-2xl animate-fadeIn space-y-4">
+          <div>
+            <h3 className="text-lg font-black text-slate-900 dark:text-white">{t('bulkPastePeople')}</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('bulkPastePeopleDesc')}</p>
+          </div>
+          <textarea
+            value={pasteData}
+            onChange={(e) => setPasteData(e.target.value)}
+            placeholder="Example:&#10;Adnan Khan	500.00&#10;Changaiz Mehmood	1849.00"
+            className="w-full h-40 bg-slate-50 dark:bg-slate-800/50 border-none rounded-2xl p-4 font-mono text-xs outline-none focus:ring-2 focus:ring-amber-500/20 text-slate-900 dark:text-white resize-none"
+          />
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowBulkPaste(false)}
+              className="flex-1 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-slate-400 bg-slate-100 dark:bg-slate-800"
+            >
+              {t('cancel')}
+            </button>
+            <button
+              onClick={handleBulkPaste}
+              disabled={!pasteData.trim() || isUploading}
+              className="flex-[2] py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest text-white bg-amber-500 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+            >
+              {isUploading ? t('parsing') : t('importAllPeople')}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Template Help / Copy Menu */}
       {showTemplateHelp && (
@@ -376,7 +516,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                     <div className="flex flex-col gap-1">
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('repaymentProgress')}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xl font-black text-slate-900 dark:text-white">€{remaining.toLocaleString()}</span>
+                        <span className="text-xl font-black text-slate-900 dark:text-white">€{formatAmount(remaining)}</span>
                         <span className="text-[10px] font-black text-slate-400 uppercase">{t('left')}</span>
                       </div>
                     </div>
@@ -392,7 +532,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                         <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-700/50">
                           <div>
                             <p className="text-[10px] font-black uppercase text-slate-400">{t('initialLoan')}</p>
-                            <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{record.amount.toLocaleString()}</p>
+                            <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{formatAmount(record.amount)}</p>
                           </div>
                           <p className="text-[8px] font-black text-slate-400 uppercase">{formatDisplayDate(record.dateLent)}</p>
                         </div>
@@ -400,7 +540,7 @@ export const Lend: React.FC<LendProps> = ({ lendRecords, onAdd, onAddBulk, onUpd
                           <div key={rep.id} className="flex items-center justify-between p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
                             <div>
                               <p className="text-[10px] font-black uppercase text-emerald-500/60">Entry #{idx + 1}</p>
-                              <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{rep.amount.toLocaleString()}</p>
+                              <p className="text-sm font-black">{record.currency === 'EUR' ? '€' : '₨'}{formatAmount(rep.amount)}</p>
                             </div>
                             <p className="text-[8px] font-black text-slate-400 uppercase">{formatDisplayDate(rep.date)}</p>
                           </div>

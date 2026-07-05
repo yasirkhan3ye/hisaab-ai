@@ -1,0 +1,1 @@
+const fs=require('fs'); let c=fs.readFileSync('android/app/build.gradle', 'utf8'); c=c.replace(/versionCode \d+/, 'versionCode 4').replace(/versionName \x22.*\x22/, 'versionName \x221.4.0\x22'); fs.writeFileSync('android/app/build.gradle', c);  

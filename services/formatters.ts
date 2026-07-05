@@ -29,3 +29,16 @@ export const formatDisplayTime = (isoDateTime: string | undefined): string => {
     return isoDateTime;
   }
 };
+
+/**
+ * Formats a number to a consistent currency string with exactly two decimal places.
+ * @param value - The number to format.
+ * @returns Formatted currency string.
+ */
+export const formatAmount = (value: number): string => {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+

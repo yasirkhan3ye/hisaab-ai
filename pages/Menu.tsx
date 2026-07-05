@@ -14,7 +14,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
   const { profile, updateProfile } = useUser();
   const { theme, toggleTheme } = useTheme();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
-  const { isSyncing, triggerManualSync, lastSyncTime, cloudPullCount, cloudPushCount, syncError, hardResetAndSync, isInitialPullDone, localRecordCount, sessionLogs } = useSync();
+  const { isSyncing, triggerManualSync, lastSyncTime, cloudPullCount, cloudPushCount, syncError, hardResetAndSync, deduplicateTransactions, isInitialPullDone, localRecordCount, sessionLogs } = useSync();
   const [showEdit, setShowEdit] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [tempPhoto, setTempPhoto] = useState(profile.photo);
@@ -49,18 +49,30 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
 
   const menuGroups = [
     {
-      title: "Cloud Diagnostics",
+      title: 'Professional Tools',
+      items: [
+        {
+          icon: 'calculate',
+          label: 'Fiscal Calculator',
+          sub: 'Regime Forfettario (Ateco 82.99.99)',
+          action: () => navigate('/fiscal'),
+          color: 'text-primary'
+        }
+      ]
+    },
+    {
+      title: t('cloudDiagnostics'),
       items: [
         {
           icon: 'cloud_done',
-          label: 'Cloud Connection',
-          sub: import.meta.env.VITE_SUPABASE_URL ? 'Connected to Supabase' : 'Connection Missing',
+          label: t('cloudConnection'),
+          sub: import.meta.env.VITE_SUPABASE_URL ? t('connectedSupabase') : t('connectionMissing'),
           color: import.meta.env.VITE_SUPABASE_URL ? 'text-emerald-500' : 'text-rose-500',
           action: () => { }
         },
         {
           icon: 'fingerprint',
-          label: 'Sync DNA',
+          label: t('syncDNA'),
           sub: `V-${syncDNA}`,
           color: 'text-amber-500',
           action: () => { }
@@ -68,9 +80,9 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         {
           icon: isSyncing ? 'sync' : 'cloud_download',
           iconClass: isSyncing ? 'animate-spin' : '',
-          label: 'Data Traffic',
-          sub: `Downloaded: ${cloudPullCount} | Uploaded: ${cloudPushCount}`,
-          sub2: `First Load: ${isInitialPullDone ? 'Success' : 'Pending'}`,
+          label: t('dataTraffic'),
+          sub: `${t('downloaded')}: ${cloudPullCount} | ${t('uploaded')}: ${cloudPushCount}`,
+          sub2: `Status: ${isInitialPullDone ? t('onlineSynced') : t('syncing')}`,
           action: () => triggerManualSync(),
           color: 'text-primary'
         },
@@ -78,7 +90,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
           custom: (
             <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-y border-slate-100 dark:border-slate-800/50">
               <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-                <span className="material-icons text-[10px]">terminal</span> System Activity Log
+                <span className="material-icons text-[10px]">terminal</span> {t('systemActivityLog')}
               </p>
               <div className="space-y-1 max-h-[80px] overflow-y-auto">
                 {sessionLogs.map((log, i) => (
@@ -92,16 +104,23 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         },
         {
           icon: 'database',
-          label: 'Local Storage',
-          sub: `${localRecordCount} Total Records`,
-          sub2: `Last Handshake: ${lastSyncTime}`,
+          label: t('localStorage'),
+          sub: `${localRecordCount} ${t('total')} ${t('transactions')}`,
+          sub2: `${t('lastSync')}: ${lastSyncTime}`,
           color: 'text-blue-500',
           action: () => { }
         },
         {
+          icon: 'cleaning_services',
+          label: t('cleanDuplicates'),
+          sub: t('cleanDuplicatesDesc'),
+          action: deduplicateTransactions,
+          color: 'text-amber-500'
+        },
+        {
           icon: 'restart_alt',
-          label: 'Hard Reset & Sync',
-          sub: 'Wipe local cache & re-download',
+          label: t('hardReset'),
+          sub: t('hardResetDesc'),
           action: hardResetAndSync,
           color: 'text-rose-500'
         }
@@ -222,9 +241,7 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
                 />
               </div>
 
-              <div className="w-full space-y-2 text-center pt-2">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Tap the icon to upload logo or picture</p>
-              </div>
+
 
               <div className="w-full space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Display Name</label>
@@ -285,11 +302,6 @@ export const Menu: React.FC<MenuProps> = ({ lendRecords = [] }) => {
         </section>
       ))}
 
-      <div className="overflow-hidden whitespace-nowrap pt-10 pb-5">
-        <p className="inline-block animate-marquee text-[10px] text-primary font-black uppercase tracking-[0.5em] opacity-50">
-          Hisaab AI v1.1.0 - Premium Financial Intelligence - Stable Release - {t('powerBy')} MJK.IT
-        </p>
-      </div>
     </div>
   );
 };

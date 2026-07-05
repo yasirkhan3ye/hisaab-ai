@@ -1,19 +1,20 @@
 
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useTranslation } from '../services/LanguageContext';
+import { formatAmount } from '../services/formatters';
 
 import { SmartProjection } from '../components/SmartProjection';
+import { FiscalCalculator } from './FiscalCalculator';
 
 interface AnalyticsProps {
   transactions: Transaction[];
 }
 
-const COLORS = ['#137fec', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
-
 export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
   const { t, language } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'insights' | 'fiscal'>('insights');
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
@@ -28,30 +29,33 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
     });
   }, [transactions, selectedMonth, selectedYear]);
 
-  // Respect excludeFromAnalytics flag for income
   const totalIncome = filteredData
     .filter(t => t.type === 'income' && !t.excludeFromAnalytics)
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const totalExpense = filteredData
-    .filter(t => t.type === 'expense')
+    .filter(t => t.type === 'expense' && !t.excludeFromAnalytics && t.category.toLowerCase() !== 'lending')
     .reduce((acc, curr) => acc + curr.amount, 0);
 
+  // Modern Category List Data
   const expenseData = useMemo(() => {
-    return filteredData
-      .filter(t => t.type === 'expense')
-      .reduce((acc: any[], curr) => {
-        const existing = acc.find(item => item.name === curr.category);
-        if (existing) existing.value += curr.amount;
-        else acc.push({ name: curr.category, value: curr.amount });
+    const summary = filteredData
+      .filter(t => t.type === 'expense' && !t.excludeFromAnalytics && t.category.toLowerCase() !== 'lending')
+      .reduce((acc: Record<string, number>, curr) => {
+        const cat = curr.category.trim();
+        acc[cat] = (acc[cat] || 0) + curr.amount;
         return acc;
-      }, []);
+      }, {});
+
+    return Object.entries(summary)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
   }, [filteredData]);
 
-  // Comparative Monthly View (last 4 months)
+  // Modern Trend Data (Last 6 months)
   const historicalFlow = useMemo(() => {
     const months = [];
-    for (let i = 3; i >= 0; i--) {
+    for (let i = 5; i >= 0; i--) {
       const d = new Date(selectedYear, selectedMonth - i, 1);
       const m = d.getMonth();
       const y = d.getFullYear();
@@ -64,10 +68,14 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
 
       const exVal = transactions.filter(t => {
         const td = new Date(t.date);
-        return td.getMonth() === m && td.getFullYear() === y && t.type === 'expense';
+        return td.getMonth() === m && td.getFullYear() === y && t.type === 'expense' && !t.excludeFromAnalytics && t.category.toLowerCase() !== 'lending';
       }).reduce((s, c) => s + c.amount, 0);
 
-      months.push({ month: label, income: inVal, expenses: exVal });
+      months.push({
+        month: label,
+        Income: Number(inVal.toFixed(0)),
+        Spending: Number(exVal.toFixed(0))
+      });
     }
     return months;
   }, [transactions, selectedMonth, selectedYear]);
@@ -87,98 +95,122 @@ export const Analytics: React.FC<AnalyticsProps> = ({ transactions }) => {
   };
 
   return (
-    <div className="space-y-8 pb-20 animate-fadeIn">
-      <header className="flex items-center justify-between px-1">
-        <div>
-          <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{t('hisaabAnalysis')}</h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{monthName} {selectedYear} {t('overview')}</p>
-        </div>
-        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-          <button onClick={() => changeMonth(-1)} className="p-1.5"><span className="material-symbols-outlined text-sm">navigate_before</span></button>
-          <button onClick={() => changeMonth(1)} className="p-1.5"><span className="material-symbols-outlined text-sm">navigate_next</span></button>
-        </div>
-      </header>
-
-      {/* Monthly Summary Card */}
-      <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden ai-glow border border-white/5">
-        <div className="relative z-10 grid grid-cols-2 gap-8">
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-emerald-500 tracking-widest">{t('monthlyInflow')}</span>
-            <p className="text-2xl font-black">€{totalIncome.toLocaleString()}</p>
-            <div className="h-1 w-full bg-emerald-500/20 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500" style={{ width: '100%' }}></div>
-            </div>
-          </div>
-          <div className="space-y-1">
-            <span className="text-[10px] font-black uppercase text-rose-500 tracking-widest">{t('monthlyOutflow')}</span>
-            <p className="text-2xl font-black">€{totalExpense.toLocaleString()}</p>
-            <div className="h-1 w-full bg-rose-500/20 rounded-full overflow-hidden">
-              <div className="h-full bg-rose-500" style={{ width: `${(totalExpense / (totalIncome || 1)) * 100}%` }}></div>
-            </div>
-          </div>
-        </div>
-        <div className="absolute -right-10 -bottom-10 opacity-10">
-          <span className="material-symbols-outlined text-[150px]">data_usage</span>
-        </div>
+    <div className="space-y-8 pb-10 animate-fadeIn">
+      <div className="flex bg-slate-100 dark:bg-slate-900 p-1.5 rounded-[1.5rem] border border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveTab('insights')}
+          className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'insights' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          Insights
+        </button>
+        <button
+          onClick={() => setActiveTab('fiscal')}
+          className={`flex-1 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === 'fiscal' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          Fiscal
+        </button>
       </div>
 
-      {/* Smart Projection */}
-      <SmartProjection 
-        transactions={transactions} 
-        selectedMonth={selectedMonth} 
-        selectedYear={selectedYear} 
-      />
+      {activeTab === 'fiscal' ? (
+        <FiscalCalculator />
+      ) : (
+        <>
+          <header className="flex items-center justify-between px-1">
+            <div>
+              <h2 className="text-2xl font-black tracking-tighter text-slate-900 dark:text-white">{t('hisaabAnalysis')}</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{monthName} {selectedYear}</p>
+            </div>
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+              <button onClick={() => changeMonth(-1)} className="p-1.5 hover:text-primary transition-colors"><span className="material-symbols-outlined text-sm font-black">chevron_left</span></button>
+              <button onClick={() => changeMonth(1)} className="p-1.5 hover:text-primary transition-colors"><span className="material-symbols-outlined text-sm font-black">chevron_right</span></button>
+            </div>
+          </header>
 
-
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1">{t('expenseBreakdown')}</h4>
-          <p className="text-[10px] text-slate-400 mb-4">{t('expenseBreakdownDesc')}</p>
-          <div className="h-52">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={expenseData} innerRadius={55} outerRadius={75} paddingAngle={5} dataKey="value">
-                  {expenseData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', background: '#1e293b', color: '#fff', fontSize: '12px' }} />
-              </PieChart>
-            </ResponsiveContainer>
+          {/* Hero Flow Stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-[2rem] p-6">
+              <span className="text-[10px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-widest block mb-1">{t('monthlyInflow')}</span>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">€{formatAmount(totalIncome)}</p>
+            </div>
+            <div className="bg-rose-500/10 border border-rose-500/20 rounded-[2rem] p-6">
+              <span className="text-[10px] font-black uppercase text-rose-600 dark:text-rose-400 tracking-widest block mb-1">{t('monthlyOutflow')}</span>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">€{formatAmount(totalExpense)}</p>
+            </div>
           </div>
-          {/* Legend */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
-            {expenseData.map((entry, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div className="size-2.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300">{t(entry.name.toLowerCase()) || entry.name}</span>
-                <span className="text-[10px] font-black text-slate-400">€{entry.value.toLocaleString()}</span>
-              </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="bg-white dark:bg-slate-900/50 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800">
-          <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6">{t('momentum')}</h4>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={historicalFlow}>
-                <XAxis dataKey="month" hide={false} axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#64748b' }} dy={10} />
-                <Tooltip contentStyle={{ background: 'transparent', border: 'none', boxShadow: 'none', color: '#64748b', fontSize: '11px', fontWeight: 900 }} cursor={{ fill: 'transparent' }} />
-                <Bar dataKey="income" fill="#10b981" radius={[10, 10, 10, 10]} />
-                <Bar dataKey="expenses" fill="#ef4444" radius={[10, 10, 10, 10]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
+          {/* Smart Projection Component */}
+          <SmartProjection
+            transactions={transactions}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+          />
 
-      <button
-        onClick={() => window.print()}
-        className="w-full py-5 rounded-[1.5rem] bg-slate-100 dark:bg-slate-800 font-black text-[10px] uppercase tracking-widest text-slate-500 flex items-center justify-center gap-2"
-      >
-        <span className="material-symbols-outlined text-sm">print</span>
-        {t('exportReport')} {monthName} {selectedYear}
-      </button>
+          {/* Modern Trend Chart */}
+          <section className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-7 border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="mb-6">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white">{t('momentumTrend')}</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('momentumTrendDesc')}</p>
+            </div>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={historicalFlow}>
+                  <defs>
+                    <linearGradient id="colorInc" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorExp" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#94a3b8'}} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fontWeight: 800, fill: '#94a3b8'}} tickFormatter={(v) => `€${v}`} />
+                  <Tooltip
+                    contentStyle={{ borderRadius: '20px', border: 'none', backgroundColor: '#0f172a', color: '#fff', fontSize: '10px', fontWeight: 'bold' }}
+                    itemStyle={{ padding: '2px 0' }}
+                  />
+                  <Area type="monotone" dataKey="Income" name={t('income')} stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorInc)" />
+                  <Area type="monotone" dataKey="Spending" name={t('spending')} stroke="#ef4444" strokeWidth={3} fillOpacity={1} fill="url(#colorExp)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+
+          {/* Modern Category List (Replacing Pie Chart) */}
+          <section className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-7 border border-slate-100 dark:border-slate-800 shadow-sm">
+            <div className="mb-8">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white">{t('expenseDistribution')}</h4>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('expenseDistributionDesc')}</p>
+            </div>
+
+            <div className="space-y-6">
+              {expenseData.length > 0 ? expenseData.map((item) => {
+                const percentage = (item.value / (totalExpense || 1)) * 100;
+                return (
+                  <div key={item.name} className="space-y-2">
+                    <div className="flex justify-between items-end">
+                      <span className="text-xs font-black text-slate-700 dark:text-slate-300 capitalize">{t(item.name.toLowerCase()) || item.name}</span>
+                      <span className="text-xs font-black text-slate-900 dark:text-white">€{formatAmount(item.value)}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all duration-1000"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{percentage.toFixed(1)}% {t('percentOfTotal')}</p>
+                  </div>
+                );
+              }) : (
+                <div className="py-10 text-center text-slate-400 italic text-[10px] uppercase font-bold tracking-widest bg-slate-50 dark:bg-slate-800/20 rounded-3xl">
+                  {t('noRecordsFound')}
+                </div>
+              )}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 };

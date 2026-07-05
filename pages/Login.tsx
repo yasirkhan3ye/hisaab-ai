@@ -26,7 +26,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 const { data, error } = await supabase.auth.signUp({ email, password });
                 if (error) throw error;
                 if (data.session) onLogin();
-                else alert('Account requested! If Confirm Email is OFF, you should be logged in. Otherwise, check your inbox.');
+                else alert(t('checkEmail') + '! ' + t('noRegistration'));
             } else {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
